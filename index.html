@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>赛博分身旅行</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #F5F5DC;
+      color: #333;
+    }
+    .page {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .page.active {
+      display: block;
+      opacity: 1;
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="font-serif min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-md mx-auto">
+
+    <!-- 1. 开始页 -->
+    <div id="page-start" class="page active">
+      <div class="text-center space-y-6 fade-in">
+        <h1 class="text-3xl font-bold tracking-wide">赛博分身旅行</h1>
+        <p class="text-stone-500">为你的数字分身安排一次短途旅行</p>
+        <div class="space-y-4">
+          <input type="text" id="player-name" placeholder="输入你的名字" 
+            class="w-full px-4 py-3 rounded-lg border border-stone-300 bg-white/60 focus:outline-none focus:ring-2 focus:ring-stone-400 text-center text-lg">
+          <button onclick="startGame()" 
+            class="w-full py-3 rounded-lg bg-stone-100 hover:bg-stone-200 transition text-lg font-medium border border-stone-300">
+            开始旅行
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 交通选择页 -->
+    <div id="page-transport" class="page">
+      <div class="space-y-6 fade-in">
+        <div class="text-center">
+          <p class="text-xl">从上海出发前往乌镇</p>
+          <p class="text-stone-500 mt-1">当前资金：<span class="font-mono text-stone-700">¥<span id="transport-money">600</span></span></p>
+        </div>
+        <div class="space-y-3">
+          <button onclick="chooseTransport('高铁', 51.5, '上午')" 
+            class="w-full text-left px-4 py-4 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            <div class="font-medium">07:23 高铁 ¥51.5</div>
+            <div class="text-sm text-stone-500 mt-1">到达：上午，车厢空旷，阳光斜射</div>
+          </button>
+          <button onclick="chooseTransport('动车', 32.5, '下午')" 
+            class="w-full text-left px-4 py-4 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            <div class="font-medium">13:45 动车 ¥32.5</div>
+            <div class="text-sm text-stone-500 mt-1">到达：下午，午后暖阳，泡面香气</div>
+          </button>
+          <button onclick="chooseTransport('城际', 43.5, '晚上')" 
+            class="w-full text-left px-4 py-4 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            <div class="font-medium">17:50 城际 ¥43.5</div>
+            <div class="text-sm text-stone-500 mt-1">到达：晚上，夕照车厢，灯笼亮起</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 路途页 -->
+    <div id="page-road" class="page">
+      <div class="space-y-6 fade-in text-center relative min-h-[400px]">
+        <p class="text-xl"><span id="road-type">高铁</span> · 旅途中...</p>
+        <p id="road-event" class="text-stone-600 italic leading-relaxed px-2"></p>
+        
+        <div id="road-choices" class="hidden space-y-3 mt-8">
+          <p class="text-stone-500 mb-2">接下来做什么？</p>
+          <button onclick="makeRoadChoice('看窗外', 1)" 
+            class="w-full py-3 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            看窗外（心境+1）
+          </button>
+          <button onclick="makeRoadChoice('闭目养神', 2)" 
+            class="w-full py-3 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            闭目养神（心境+2）
+          </button>
+          <button onclick="makeRoadChoice('整理背包', 0)" 
+            class="w-full py-3 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            整理背包（无变化）
+          </button>
+        </div>
+
+        <div id="road-countdown-box" class="hidden mt-8">
+          <p class="text-stone-500">预计30分钟后到达</p>
+          <p id="road-countdown" class="text-2xl font-mono mt-2 text-stone-700">30:00</p>
+        </div>
+
+        <button onclick="skipRoad()" 
+          class="absolute bottom-0 right-0 text-xs text-stone-400 hover:text-stone-600 underline">
+          【测试】立即到达
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. 到达页 -->
+    <div id="page-arrive" class="page">
+      <div class="space-y-6 fade-in text-center">
+        <p class="text-xl">已到达乌镇</p>
+        <p id="arrive-text" class="text-stone-600 leading-relaxed px-2"></p>
+        <div class="bg-white/40 rounded-lg p-4 border border-stone-300">
+          <p class="text-stone-500">当前状态</p>
+          <p class="text-lg mt-1">资金 <span class="font-mono">¥<span id="arrive-money">0</span></span>，心境 <span class="font-mono"><span id="arrive-mood">0</span>/10</span></p>
+        </div>
+        <button onclick="showPage('page-explore')" 
+          class="w-full py-3 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+          去东栅看看
+        </button>
+      </div>
+    </div>
+
+    <!-- 5. 探索页 -->
+    <div id="page-explore" class="page">
+      <div class="space-y-6 fade-in text-center relative min-h-[400px]">
+        <p class="text-xl">现在位于东栅，接下来...</p>
+        
+        <div id="explore-choices" class="space-y-3">
+          <button onclick="chooseExplore('tea', 10)" 
+            class="w-full text-left px-4 py-4 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            <div class="font-medium">🍵 去茶馆坐着</div>
+            <div class="text-sm text-stone-500 mt-1">消耗¥10，预计30分钟后生成游记</div>
+          </button>
+          <button onclick="chooseExplore('photo', 20)" 
+            class="w-full text-left px-4 py-4 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            <div class="font-medium">📷 拍照闲逛</div>
+            <div class="text-sm text-stone-500 mt-1">消耗¥20，预计30分钟后生成游记</div>
+          </button>
+          <button onclick="chooseExplore('daze', 0)" 
+            class="w-full text-left px-4 py-4 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+            <div class="font-medium">🌊 河边发呆</div>
+            <div class="text-sm text-stone-500 mt-1">免费，预计30分钟后生成游记</div>
+          </button>
+        </div>
+
+        <div id="explore-countdown-box" class="hidden mt-8">
+          <p class="text-stone-500">探索中...</p>
+          <p id="explore-countdown" class="text-2xl font-mono mt-2 text-stone-700">30:00</p>
+        </div>
+
+        <button onclick="skipExplore()" 
+          class="absolute bottom-0 right-0 text-xs text-stone-400 hover:text-stone-600 underline">
+          【测试】立即完成
+        </button>
+      </div>
+    </div>
+
+    <!-- 6. 结果页 -->
+    <div id="page-result" class="page">
+      <div class="space-y-6 fade-in">
+        <h2 class="text-2xl font-bold text-center">旅行回顾</h2>
+        
+        <div class="bg-white/40 rounded-lg p-4 border border-stone-300 space-y-2 text-sm">
+          <p><span class="text-stone-500">旅行者：</span><span id="result-name"></span></p>
+          <p><span class="text-stone-500">行程：</span>上海 → 乌镇（<span id="result-transport"></span>）</p>
+          <p><span class="text-stone-500">路途：</span><span id="result-road"></span></p>
+          <p><span class="text-stone-500">东栅：</span><span id="result-activity"></span></p>
+        </div>
+
+        <div class="bg-white/60 rounded-lg p-4 border border-stone-300">
+          <p class="text-stone-500 text-sm mb-2">生成的游记</p>
+          <p id="result-travelogue" class="leading-relaxed text-stone-700 whitespace-pre-line"></p>
+        </div>
+
+        <div class="text-center text-sm text-stone-500">
+          最终状态：资金 ¥<span id="result-money"></span>，心境 <span id="result-mood"></span>/10
+        </div>
+
+        <button onclick="resetGame()" 
+          class="w-full py-3 rounded-lg bg-stone-100 hover:bg-stone-200 transition border border-stone-300">
+          再次出发
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // 严格数据结构定义
+    let travelState = {
+      player: {
+        name: "",
+        money: 600,
+        mood: 5
+      },
+      trip: {
+        from: "上海",
+        to: "乌镇",
+        transport: {
+          type: "",
+          price: 0,
+          arriveTime: ""
+        },
+        roadChoice: {
+          text: "",
+          moodChange: 0
+        },
+        explore: {
+          activity: "",
+          cost: 0,
+          resultText: ""
+        }
+      },
+      currentPage: "page-start"
+    };
+
+    let countdownInterval = null;
+    let roadEventTimer = null;
+
+    // 初始化：尝试从localStorage恢复
+    function init() {
+      const saved = localStorage.getItem('travelState');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          travelState = parsed;
+          restorePageState();
+        } catch (e) {
+          console.error('恢复状态失败', e);
+        }
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem('travelState', JSON.stringify(travelState));
+    }
+
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      travelState.currentPage = pageId;
+      saveState();
+    }
+
+    // ==================== 1. 开始页 ====================
+    function startGame() {
+      const nameInput = document.getElementById('player-name').value.trim();
+      if (!nameInput) {
+        alert('请输入你的名字');
+        return;
+      }
+      travelState.player.name = nameInput;
+      saveState();
+      showPage('page-transport');
+    }
+
+    // ==================== 2. 交通选择页 ====================
+    function chooseTransport(type, price, arriveTime) {
+      if (travelState.player.money < price) {
+        alert('资金不足');
+        return;
+      }
+      travelState.player.money -= price;
+      travelState.trip.transport = { type, price, arriveTime };
+      saveState();
+      enterRoadPage();
+    }
+
+    // ==================== 3. 路途页 ====================
+    function enterRoadPage() {
+      showPage('page-road');
+      document.getElementById('road-type').textContent = travelState.trip.transport.type;
+      document.getElementById('road-event').textContent = generateRoadEvent();
+      document.getElementById('road-choices').classList.add('hidden');
+      document.getElementById('road-countdown-box').classList.add('hidden');
+
+      // 10秒后浮现选择
+      if (roadEventTimer) clearTimeout(roadEventTimer);
+      roadEventTimer = setTimeout(() => {
+        document.getElementById('road-choices').classList.remove('hidden');
+      }, 10000);
+    }
+
+    function generateRoadEvent() {
+      const events = [
+        "邻座的大叔剥开小核桃仁，往你这边让了让...",
+        "列车穿过一片水网，午后阳光把湖面切成碎银子...",
+        "车厢广播报站，有人起身拿行李，空气里多了点离别气息...",
+        "窗外的油菜花田一闪而过，蜜蜂追不上列车的速度...",
+        "前排的小孩趴在窗上哈气，画了一只歪歪扭扭的兔子..."
+      ];
+      return events[Math.floor(Math.random() * events.length)];
+    }
+
+    function makeRoadChoice(text, moodChange) {
+      travelState.trip.roadChoice = { text, moodChange };
+      travelState.player.mood = Math.min(10, travelState.player.mood + moodChange);
+      saveState();
+      document.getElementById('road-choices').classList.add('hidden');
+      document.getElementById('road-countdown-box').classList.remove('hidden');
+      startCountdown('road-countdown', 30 * 60 * 1000, () => {
+        showPage('page-arrive');
+        renderArrivePage();
+      });
+    }
+
+    function skipRoad() {
+      if (roadEventTimer) clearTimeout(roadEventTimer);
+      showPage('page-arrive');
+      renderArrivePage();
+    }
+
+    // ==================== 4. 到达页 ====================
+    function renderArrivePage() {
+      const time = travelState.trip.transport.arriveTime;
+      let text = "";
+      if (time === "上午") {
+        text = "清晨的乌镇还没醒来，石板路带着晨露，老门板吱呀作响。你深吸一口气，空气里有淡淡的木香。";
+      } else if (time === "下午") {
+        text = "午后的阳光把白墙晒得暖洋洋，桥边有人支起竹椅打盹。你的影子被拉得很长，落在青石板路上。";
+      } else {
+        text = "两岸的灯笼刚好亮起，河水倒映着红光，像打碎了一河的胭脂。晚风送来评弹的尾音，若有若无。";
+      }
+      document.getElementById('arrive-text').textContent = text;
+      document.getElementById('arrive-money').textContent = travelState.player.money.toFixed(1);
+      document.getElementById('arrive-mood').textContent = travelState.player.mood;
+    }
+
+    // ==================== 5. 探索页 ====================
+    function chooseExplore(activity, cost) {
+      if (travelState.player.money < cost) {
+        alert('资金不足');
+        return;
+      }
+      travelState.player.money -= cost;
+      travelState.trip.explore = { activity, cost, resultText: "" };
+      saveState();
+      document.getElementById('explore-choices').classList.add('hidden');
+      document.getElementById('explore-countdown-box').classList.remove('hidden');
+      startCountdown('explore-countdown', 30 * 60 * 1000, () => {
+        finishExplore();
+      });
+    }
+
+    function skipExplore() {
+      finishExplore();
+    }
+
+    // ==================== 6. 结果页 ====================
+    function finishExplore() {
+      const resultText = generateTravelogue(travelState.trip.explore.activity, travelState.player.mood);
+      travelState.trip.explore.resultText = resultText;
+      saveState();
+      showPage('page-result');
+      renderResultPage();
+    }
+
+    function generateTravelogue(activity, mood) {
+      const teaTemplates = [
+        "坐在窗边，看乌篷船慢悠悠地划过水面。",
+        "茶馆老板添了三次水，热气把窗玻璃熏得朦胧。",
+        "喝完了这壶菊花茶，舌尖还留着淡淡的甘。",
+        "邻桌的老人在说往事，声音轻得像茶叶沉底。"
+      ];
+      const photoTemplates = [
+        "举起了相机，把石桥和倒影框进同一个画面。",
+        "拍下了白墙上一株斜伸出来的枇杷树。",
+        "快门声很轻，像一只鸟落在瓦当上。",
+        "阳光正好，照片里的石板路泛着青金色的光。"
+      ];
+      const dazeTemplates = [
+        "坐在河边的石阶上，什么也没做。",
+        "看着水波把灯笼的倒影揉碎又拼好。",
+        "太阳偏西了，空气渐渐凉下来。",
+        "一只白鹭从对岸飞起，翅膀带起细碎的水光。"
+      ];
+
+      let pool = [];
+      if (activity === "tea") pool = teaTemplates;
+      else if (activity === "photo") pool = photoTemplates;
+      else pool = dazeTemplates;
+
+      // 随机选3-4句
+      const count = Math.random() > 0.5 ? 4 : 3;
+      const shuffled = pool.sort(() => 0.5 - Math.random());
+      let text = shuffled.slice(0, count).join("\n");
+
+      // 根据mood追加一句
+      if (mood >= 8) {
+        text += "\n这一天像被水轻轻托着，平稳又安静。";
+      } else if (mood <= 3) {
+        text += "\n虽然有点疲惫，但风景终究是看进心里了。";
+      }
+      return text;
+    }
+
+    function renderResultPage() {
+      document.getElementById('result-name').textContent = travelState.player.name;
+      document.getElementById('result-transport').textContent = `${travelState.trip.transport.type}（¥${travelState.trip.transport.price}，${travelState.trip.transport.arriveTime}到达）`;
+      document.getElementById('result-road').textContent = `${travelState.trip.roadChoice.text}（心境${travelState.trip.roadChoice.moodChange >= 0 ? '+' : ''}${travelState.trip.roadChoice.moodChange}）`;
+      
+      const activityMap = { tea: "去茶馆坐着", photo: "拍照闲逛", daze: "河边发呆" };
+      document.getElementById('result-activity').textContent = `${activityMap[travelState.trip.explore.activity]}（消耗¥${travelState.trip.explore.cost}）`;
+      
+      document.getElementById('result-travelogue').textContent = travelState.trip.explore.resultText;
+      document.getElementById('result-money').textContent = travelState.player.money.toFixed(1);
+      document.getElementById('result-mood').textContent = travelState.player.mood;
+    }
+
+    function resetGame() {
+      localStorage.removeItem('travelState');
+      localStorage.removeItem('countdownTarget');
+      localStorage.removeItem('countdownCallbackPage');
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      travelState = {
+        player: { name: "", money: 600, mood: 5 },
+        trip: {
+          from: "上海",
+          to: "乌镇",
+          transport: { type: "", price: 0, arriveTime: "" },
+          roadChoice: { text: "", moodChange: 0 },
+          explore: { activity: "", cost: 0, resultText: "" }
+        },
+        currentPage: "page-start"
+      };
+      document.getElementById('player-name').value = '';
+
+      // 重置探索页与路途页的内部 DOM 状态
+      document.getElementById('explore-choices').classList.remove('hidden');
+      document.getElementById('explore-countdown-box').classList.add('hidden');
+      document.getElementById('explore-countdown').textContent = '30:00';
+
+      document.getElementById('road-choices').classList.add('hidden');
+      document.getElementById('road-countdown-box').classList.add('hidden');
+      document.getElementById('road-countdown').textContent = '30:00';
+
+      showPage('page-start');
+    }
+
+    // ==================== 倒计时逻辑 ====================
+    function startCountdown(elementId, duration, callback) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      const targetTime = Date.now() + duration;
+      localStorage.setItem('countdownTarget', targetTime.toString());
+      localStorage.setItem('countdownCallbackPage', travelState.currentPage);
+
+      const el = document.getElementById(elementId);
+      function update() {
+        const now = Date.now();
+        const remaining = Math.ceil((targetTime - now) / 1000);
+        if (remaining <= 0) {
+          clearInterval(countdownInterval);
+          el.textContent = "00:00";
+          localStorage.removeItem('countdownTarget');
+          localStorage.removeItem('countdownCallbackPage');
+          if (callback) callback();
+          return;
+        }
+        const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+        const s = (remaining % 60).toString().padStart(2, '0');
+        el.textContent = `${m}:${s}`;
+      }
+      update();
+      countdownInterval = setInterval(update, 1000);
+    }
+
+    // ==================== 页面刷新恢复逻辑 ====================
+    function restorePageState() {
+      // 更新UI显示
+      document.getElementById('transport-money').textContent = travelState.player.money.toFixed(1);
+      if (travelState.player.name) {
+        document.getElementById('player-name').value = travelState.player.name;
+      }
+
+      showPage(travelState.currentPage);
+
+      // 根据当前页面恢复特定状态
+      if (travelState.currentPage === 'page-road') {
+        document.getElementById('road-type').textContent = travelState.trip.transport.type;
+        if (travelState.trip.roadChoice.text) {
+          // 已经做了选择，显示倒计时
+          document.getElementById('road-event').textContent = generateRoadEvent();
+          document.getElementById('road-choices').classList.add('hidden');
+          document.getElementById('road-countdown-box').classList.remove('hidden');
+          restoreCountdown(() => {
+            showPage('page-arrive');
+            renderArrivePage();
+          });
+        } else {
+          // 还没做选择，重新显示事件和10秒后的选择
+          document.getElementById('road-event').textContent = generateRoadEvent();
+          document.getElementById('road-choices').classList.add('hidden');
+          document.getElementById('road-countdown-box').classList.add('hidden');
+          if (roadEventTimer) clearTimeout(roadEventTimer);
+          roadEventTimer = setTimeout(() => {
+            document.getElementById('road-choices').classList.remove('hidden');
+          }, 10000);
+        }
+      } else if (travelState.currentPage === 'page-arrive') {
+        renderArrivePage();
+      } else if (travelState.currentPage === 'page-explore') {
+        if (travelState.trip.explore.activity) {
+          // 已经选了活动，显示倒计时
+          document.getElementById('explore-choices').classList.add('hidden');
+          document.getElementById('explore-countdown-box').classList.remove('hidden');
+          restoreCountdown(() => {
+            finishExplore();
+          });
+        } else {
+          // 还没选活动
+          document.getElementById('explore-choices').classList.remove('hidden');
+          document.getElementById('explore-countdown-box').classList.add('hidden');
+        }
+      } else if (travelState.currentPage === 'page-result') {
+        renderResultPage();
+      }
+    }
+
+    function restoreCountdown(callback) {
+      const targetStr = localStorage.getItem('countdownTarget');
+      if (!targetStr) return;
+      const targetTime = parseInt(targetStr, 10);
+      const now = Date.now();
+      const remaining = targetTime - now;
+
+      const page = travelState.currentPage;
+      const elementId = page === 'page-road' ? 'road-countdown' : 'explore-countdown';
+      const el = document.getElementById(elementId);
+
+      if (remaining <= 0) {
+        el.textContent = "00:00";
+        localStorage.removeItem('countdownTarget');
+        localStorage.removeItem('countdownCallbackPage');
+        if (callback) callback();
+        return;
+      }
+
+      if (countdownInterval) clearInterval(countdownInterval);
+      function update() {
+        const now2 = Date.now();
+        const sec = Math.ceil((targetTime - now2) / 1000);
+        if (sec <= 0) {
+          clearInterval(countdownInterval);
+          el.textContent = "00:00";
+          localStorage.removeItem('countdownTarget');
+          localStorage.removeItem('countdownCallbackPage');
+          if (callback) callback();
+          return;
+        }
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        el.textContent = `${m}:${s}`;
+      }
+      update();
+      countdownInterval = setInterval(update, 1000);
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>
