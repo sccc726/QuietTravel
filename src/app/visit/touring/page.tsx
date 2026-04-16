@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Footprints, FastForward } from 'lucide-react';
+import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX } from 'lucide-react';
 
 /** 事件数据结构（含可选图片） */
 interface EventData {
@@ -49,6 +49,42 @@ function TouringContent() {
 
   // 事件是否全部完成
   const allDone = events.length >= totalEvents;
+
+  // 背景音乐
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [muted, setMuted] = useState(false);
+
+  // 初始化并播放背景音乐
+  useEffect(() => {
+    const audio = new Audio('/assets/touring-bgm.mp3');
+    audio.loop = true;
+    audio.volume = 0.5;
+    audioRef.current = audio;
+
+    audio.play().catch(() => {
+      // 浏览器自动播放限制，静音重试
+      audio.muted = true;
+      audio.play().then(() => {
+        audio.muted = false;
+        setMuted(false);
+      }).catch(() => {});
+    });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      audioRef.current = null;
+    };
+  }, []);
+
+  // 静音切换
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const next = !muted;
+    audio.muted = next;
+    setMuted(next);
+  }, [muted]);
 
   // 用 ref 跟踪最新值，避免闭包问题
   const eventsRef = useRef(events);
@@ -213,7 +249,13 @@ function TouringContent() {
         >
           游览中
         </h1>
-        <div className="w-16" />
+        <button
+          onClick={toggleMute}
+          className="text-muted-foreground/50 hover:text-foreground/60 transition-colors duration-300"
+          aria-label={muted ? '取消静音' : '静音'}
+        >
+          {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+        </button>
       </header>
 
       {/* 主内容 */}
