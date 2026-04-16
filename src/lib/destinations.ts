@@ -1,29 +1,24 @@
 /**
  * 赛博旅途 - 目的地与景点数据结构
  *
- * 设计原则：
- * - Destination 为顶层目的地（城市/区域）
- * - Spot 为目的地下的具体景点
- * - coordinates 为真实经纬度，用于地图定位
- * - 预留 unlocked / cost 等字段，支持后续扩展挂机/经营逻辑
+ * coordinates: 真实经纬度
+ * keywords / reviews: 由 web-search 获取并缓存，只请求一次
+ * unlocked / cost: 预留字段，支持后续扩展挂机/经营逻辑
  */
 
 export interface Spot {
   id: string;
   name: string;
   description: string;
-  /** 景点标签，如 "水乡" "古镇" */
   tag?: string;
-  /** 是否已解锁，预留字段 */
   unlocked?: boolean;
-  /** 解锁消耗，预留字段 */
   cost?: number;
 }
 
 export interface Destination {
   id: string;
   name: string;
-  /** 目的地简介 */
+  /** 静态描述，作为降级文案 */
   description: string;
   /** 真实经纬度坐标 */
   coordinates: { lat: number; lng: number };
@@ -33,6 +28,17 @@ export interface Destination {
   unlocked?: boolean;
   /** 解锁消耗，预留字段 */
   cost?: number;
+}
+
+/** 目的地扩展信息 — 由 web-search 获取，只请求一次后缓存 */
+export interface DestinationInfo {
+  id: string;
+  /** 从搜索结果提取的关键词标签 */
+  keywords: string[];
+  /** 游客评价摘要 */
+  reviews: string[];
+  /** AI 总结的目的地特征 */
+  summary: string;
 }
 
 /** 全部目的地数据 — 后续在此数组中追加即可扩展 */
@@ -60,17 +66,4 @@ export const destinations: Destination[] = [
       },
     ],
   },
-  // 后续可扩展更多目的地，例如：
-  // {
-  //   id: 'lijiang',
-  //   name: '丽江',
-  //   description: '雪山之下的柔软时光',
-  //   coordinates: { lat: 26.8721, lng: 100.2299 },
-  //   unlocked: false,
-  //   cost: 100,
-  //   spots: [
-  //     { id: 'dayan', name: '大研古镇', description: '...', tag: '古镇', unlocked: true },
-  //     { id: 'yulong', name: '玉龙雪山', description: '...', tag: '雪山', unlocked: false, cost: 50 },
-  //   ],
-  // },
 ];

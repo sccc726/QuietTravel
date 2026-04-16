@@ -21,9 +21,66 @@ const MapInner = dynamic(() => import('./components/map-inner'), {
   ),
 });
 
+/** 记录已请求过关键词缓存的目的地 ID */
+const infoFetched = new Set<string>();
+
 export default function MapPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<Destination | null>(null);
+  const [aiDescription, setAiDescription] = useState('');
+  const [descriptionLoading, setDescriptionLoading] = useState(false);
+
+  // 选中目的地时：1) 预获取关键词缓存（仅首次）2) 请求 AI 描述
+  useEffect(() => {
+    if (!selected) {
+      setAiDescription('');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadDestinationInfo(dest: Destination) {
+      // 首次访问，预获取关键词并缓存
+      if (!infoFetched.has(dest.id)) {
+        infoFetched.add(dest.id);
+        fetch('/api/destination/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ destinationId: dest.id }),
+        }).catch(() => {
+          // 缓存获取失败不影响主流程
+        });
+      }
+
+      // 请求 AI 生成描述
+      setDescriptionLoading(true);
+      try {
+        const res = await fetch('/api/destination/description', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ destinationId: dest.id }),
+        });
+        const data = await res.json();
+        if (!cancelled && data.description) {
+          setAiDescription(data.description);
+        }
+      } catch {
+        if (!cancelled) {
+          setAiDescription(dest.description);
+        }
+      } finally {
+        if (!cancelled) {
+          setDescriptionLoading(false);
+        }
+      }
+    }
+
+    loadDestinationInfo(selected);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
 
   const handleDestinationClick = useCallback((dest: Destination) => {
     setSelected(prev => (prev?.id === dest.id ? null : dest));
@@ -75,7 +132,13 @@ export default function MapPage() {
                 </h2>
               </div>
               <p className="text-xs text-muted-foreground/60 mb-4 leading-relaxed pl-6">
-                {selected.description}
+                {descriptionLoading ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block w-3 h-px bg-muted-foreground/20 animate-pulse" />
+                  </span>
+                ) : (
+                  aiDescription || selected.description
+                )}
               </p>
 
               <div className="space-y-2 pl-6">
