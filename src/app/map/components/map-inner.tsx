@@ -4,6 +4,15 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import type { Destination } from '@/lib/destinations';
 
+// 修复 Leaflet 默认图标在 webpack 中的路径问题
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: '',
+  iconUrl: '',
+  shadowUrl: '',
+});
+
 interface MapInnerProps {
   destinations: Destination[];
   selectedId: string | null;
