@@ -95,6 +95,7 @@ function TouringContent() {
         if (idx >= eventText.length) {
           clearInterval(timer);
           setIsTyping(false);
+          setCurrentEvent(''); // 清空当前事件，避免和已完成列表重复显示
           setEvents(prev => [...prev, eventText]);
         }
       }, 50);
@@ -207,15 +208,13 @@ function TouringContent() {
           )}
 
           {/* 当前事件（打字机） */}
-          {currentEvent && !isWaiting && (
+          {isTyping && !isWaiting && (
             <div
               className="text-sm text-foreground/75 leading-relaxed pl-4 border-l-2 border-accent-green/40"
               style={{ fontFamily: 'var(--font-sans)' }}
             >
               {displayedEvent}
-              {isTyping && (
-                <span className="inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 animate-blink" />
-              )}
+              <span className="inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 animate-blink" />
             </div>
           )}
 
