@@ -195,6 +195,7 @@ function MapPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
+        signal: AbortSignal.timeout(15000),
       })
         .then(res => res.json())
         .then(data => {
@@ -208,6 +209,7 @@ function MapPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
+        signal: AbortSignal.timeout(30000),
       })
         .then(res => res.json())
         .then(data => {
@@ -224,6 +226,7 @@ function MapPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
+        signal: AbortSignal.timeout(30000),
       })
         .then(res => res.json())
         .then(data => {

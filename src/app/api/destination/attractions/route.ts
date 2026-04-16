@@ -25,28 +25,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data: cached, fromCache: true });
     }
 
-    // 2. web-search 获取景点信息
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
-    const searchClient = new SearchClient(config, customHeaders);
 
-    const searchResponse = await searchClient.webSearch(
-      `${destinationName} 必去景点 旅游攻略 推荐`,
-      10,
-      true
-    );
+    // 2. web-search 获取景点信息
+    let searchContext = '';
+    try {
+      const searchClient = new SearchClient(config, customHeaders);
+      const searchResponse = await searchClient.webSearch(
+        `${destinationName} 必去景点 推荐`,
+        5,
+        true
+      );
+      searchContext = searchResponse.web_items
+        ?.slice(0, 6)
+        .map((item, i) => `[${i + 1}] ${item.title ?? ''}: ${item.snippet ?? ''}`)
+        .join('\n') ?? '';
+    } catch (searchErr) {
+      console.error('[/api/destination/attractions] web-search 失败:', searchErr);
+    }
 
-    // 3. 用 LLM 从搜索结果中结构化提取景点列表
-    const searchContext = searchResponse.web_items
-      ?.map((item, i) => `[${i + 1}] ${item.title ?? ''}: ${item.snippet ?? ''}`)
-      .join('\n');
-
+    // 3. LLM 提取：有搜索结果则提取，没有则直接生成
     const llmClient = new LLMClient(config, customHeaders);
-    const llmResponse = await llmClient.invoke(
-      [
-        {
-          role: 'system' as const,
-          content: `你是一个旅游数据提取助手。根据搜索结果，提取该目的地的景点列表。
+    const hasSearch = searchContext.length > 0;
+
+    const systemPrompt = hasSearch
+      ? `你是一个旅游数据提取助手。根据搜索结果，提取该目的地的景点列表。
 返回严格的 JSON 数组，每个元素包含：
 - name: 景点名称（string）
 - description: 一句话简介，15字以内（string）
@@ -54,60 +58,95 @@ export async function POST(request: NextRequest) {
 - keywords: 关键词数组，6个（string[]）
 - reviews: 游客评价摘要数组，3条，每条20字以内（string[]）
 
-提取 6-8 个最知名的景点。只返回 JSON 数组，不要其他文字。`,
-        },
-        {
-          role: 'user' as const,
-          content: `目的地：${destinationName}\n\n搜索结果：\n${searchContext}`,
-        },
-      ],
-      {
-        model: 'doubao-seed-2-0-lite-260215',
-        temperature: 0.3,
-        thinking: 'disabled',
-      }
-    );
+提取 6-8 个最知名的景点。只返回 JSON 数组，不要其他文字。`
+      : `你是一个旅游数据专家。请列出${destinationName}的知名景点。
+返回严格的 JSON 数组，每个元素包含：
+- name: 景点名称（string）
+- description: 一句话简介，15字以内（string）
+- tag: 一个简短标签，2字以内（string）
+- keywords: 关键词数组，6个（string[]）
+- reviews: 游客评价摘要数组，3条，每条20字以内（string[]）
 
-    // 4. 解析 LLM 返回的 JSON
+列出 6-8 个最知名的景点。只返回 JSON 数组，不要其他文字。`;
+
+    const userContent = hasSearch
+      ? `目的地：${destinationName}\n\n搜索结果：\n${searchContext}`
+      : `请列出${destinationName}的知名景点。`;
+
     let attractions: PlaceItem[] = [];
+
     try {
+      const llmResponse = await llmClient.invoke(
+        [
+          { role: 'system' as const, content: systemPrompt },
+          { role: 'user' as const, content: userContent },
+        ],
+        {
+          model: 'doubao-seed-2-0-lite-260215',
+          temperature: 0.3,
+          thinking: 'disabled',
+        }
+      );
+
       const raw = llmResponse.content.trim();
-      // 尝试提取 JSON 数组部分
       const jsonMatch = raw.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (Array.isArray(parsed)) {
-          attractions = parsed.map((item: Record<string, unknown>, idx: number) => ({
-            id: `${destinationId}-attr-${idx + 1}`,
-            name: String(item.name ?? ''),
-            description: String(item.description ?? ''),
-            tag: item.tag ? String(item.tag) : undefined,
-            type: 'attraction' as const,
-            keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
-            reviews: Array.isArray(item.reviews) ? item.reviews.map(String) : [],
-          }));
+          attractions = parsed
+            .map((item: Record<string, unknown>, idx: number) => ({
+              id: `${destinationId}-attr-${idx + 1}`,
+              name: String(item.name ?? ''),
+              description: String(item.description ?? ''),
+              tag: item.tag ? String(item.tag) : undefined,
+              type: 'attraction' as const,
+              keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
+              reviews: Array.isArray(item.reviews) ? item.reviews.map(String) : [],
+            }))
+            .filter(p => p.name.length > 0);
         }
       }
-    } catch (parseErr) {
-      console.error('[/api/destination/attractions] JSON 解析失败:', parseErr);
+    } catch (llmErr) {
+      console.error('[/api/destination/attractions] LLM 调用失败:', llmErr);
     }
 
-    // 降级：如果 LLM 没有返回有效数据，从搜索结果简单提取
-    if (attractions.length === 0 && searchResponse.web_items) {
-      const seen = new Set<string>();
-      for (const item of searchResponse.web_items) {
-        const title = item.title?.replace(/[-_|·].*/, '').trim() ?? '';
-        if (title && !seen.has(title) && attractions.length < 8) {
-          seen.add(title);
-          attractions.push({
-            id: `${destinationId}-attr-${attractions.length + 1}`,
-            name: title,
-            description: item.snippet?.slice(0, 20) ?? '',
-            type: 'attraction' as const,
-            keywords: [],
-            reviews: item.snippet ? [item.snippet.slice(0, 30)] : [],
-          });
+    // 4. 二次降级：如果仍有数据，直接用 LLM 知识生成
+    if (attractions.length === 0) {
+      try {
+        const fallbackRes = await llmClient.invoke(
+          [
+            {
+              role: 'system' as const,
+              content: `你是一个旅游数据专家。请列出${destinationName}的知名景点。返回严格的 JSON 数组，每个元素包含：name(景点名称)、description(一句话简介15字)、tag(2字标签)、keywords(6个关键词)、reviews(3条评价每条20字)。列出 6-8 个。只返回 JSON 数组。`,
+            },
+            { role: 'user' as const, content: `请列出${destinationName}的知名景点。` },
+          ],
+          {
+            model: 'doubao-seed-2-0-lite-260215',
+            temperature: 0.3,
+            thinking: 'disabled',
+          }
+        );
+        const raw = fallbackRes.content.trim();
+        const jsonMatch = raw.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed)) {
+            attractions = parsed
+              .map((item: Record<string, unknown>, idx: number) => ({
+                id: `${destinationId}-attr-${idx + 1}`,
+                name: String(item.name ?? ''),
+                description: String(item.description ?? ''),
+                tag: item.tag ? String(item.tag) : undefined,
+                type: 'attraction' as const,
+                keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
+                reviews: Array.isArray(item.reviews) ? item.reviews.map(String) : [],
+              }))
+              .filter(p => p.name.length > 0);
+          }
         }
+      } catch (fallbackErr) {
+        console.error('[/api/destination/attractions] 降级 LLM 也失败:', fallbackErr);
       }
     }
 

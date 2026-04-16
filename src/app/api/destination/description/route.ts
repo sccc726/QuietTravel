@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
-import { getCachedInfo } from '@/lib/destination-cache';
+import { getCachedInfo, setCachedInfo } from '@/lib/destination-cache';
 
 export async function POST(request: NextRequest) {
   let destinationId = '';
@@ -15,21 +15,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请提供目的地 ID' }, { status: 400 });
     }
 
-    // 如果没传 destinationName，从缓存信息中尝试获取
-    if (!destinationName) {
-      const cachedInfo = getCachedInfo(destinationId);
-      if (cachedInfo) {
-        destinationName = cachedInfo.summary ? destinationId : '';
-      }
-    }
-
-    // 从缓存获取关键词信息
-    const cachedInfo = getCachedInfo(destinationId);
-
-    // 构建上下文：有缓存则用关键词，没有则用名称
+    // 构建上下文
     const contextParts: string[] = [];
     if (destinationName) {
       contextParts.push(`目的地名称：${destinationName}`);
+    }
+
+    // 尝试获取缓存信息；如果没有则先用 LLM 生成一个简短概况
+    let cachedInfo = getCachedInfo(destinationId);
+    if (!cachedInfo && destinationName) {
+      // 没有缓存，快速用 LLM 生成简要概况作为上下文（比 web-search 快得多）
+      try {
+        const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+        const config = new Config();
+        const quickClient = new LLMClient(config, customHeaders);
+        const quickRes = await quickClient.invoke(
+          [
+            {
+              role: 'system' as const,
+              content: `用3-5个关键词概括${destinationName}的旅游特色，用逗号分隔。只输出关键词，不要其他文字。`,
+            },
+            {
+              role: 'user' as const,
+              content: destinationName,
+            },
+          ],
+          {
+            model: 'doubao-seed-2-0-lite-260215',
+            temperature: 0.3,
+            thinking: 'disabled',
+          }
+        );
+        const keywords = quickRes.content.trim().split(/[,，、\s]+/).filter(Boolean);
+        cachedInfo = {
+          id: destinationId,
+          keywords,
+          reviews: [],
+          summary: `${destinationName}旅游目的地`,
+        };
+        setCachedInfo(cachedInfo);
+      } catch {
+        // 快速概况失败，不阻塞主流程
+      }
     }
 
     if (cachedInfo) {
