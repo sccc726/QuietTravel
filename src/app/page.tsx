@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Loader2, Terminal } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function CharacterCreatePage() {
   const [characterName, setCharacterName] = useState('');
@@ -17,7 +17,6 @@ export default function CharacterCreatePage() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // 模拟提交
     setTimeout(() => {
       setIsSubmitting(false);
       setSubmitted(true);
@@ -26,29 +25,44 @@ export default function CharacterCreatePage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen cyber-grid flex items-center justify-center px-4 relative overflow-hidden">
-        {/* 扫描线装饰 */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyber/20 to-transparent animate-scanline" />
-        </div>
-
-        <div className="max-w-md w-full text-center space-y-6 animate-fade-in-up">
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
+          {/* 小图标 */}
           <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-full border border-cyber/30 flex items-center justify-center">
-              <Terminal className="w-7 h-7 text-cyber animate-breathe" />
+            <div className="w-14 h-14 rounded-full bg-accent/60 flex items-center justify-center animate-float">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-accent-green"
+              >
+                <path d="M12 2C8 7 4 9 4 13a8 8 0 0 0 16 0c0-4-4-6-8-11z" />
+              </svg>
             </div>
           </div>
-          <div className="space-y-2">
-            <h2 className="text-xl font-light tracking-widest text-foreground/90">
-              身份已确认
+
+          <div className="space-y-3">
+            <h2
+              className="text-xl font-light tracking-wider text-foreground/85"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              旅途将启
             </h2>
-            <p className="text-sm text-muted-foreground tracking-wide">
-              旅者 <span className="text-cyber font-mono">{characterName}</span>，欢迎接入赛博空间
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              <span className="text-accent-green font-medium">{characterName}</span>
+              ，你的旅行手记已经备好
             </p>
           </div>
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60 font-mono">
-            <span className="inline-block w-2 h-2 rounded-full bg-cyber/60 animate-breathe" />
-            <span>正在初始化世界数据...</span>
+
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
+            <span className="inline-block w-5 h-px bg-border" />
+            <span>正在准备你的世界</span>
+            <span className="inline-block w-5 h-px bg-border" />
           </div>
         </div>
       </div>
@@ -56,59 +70,48 @@ export default function CharacterCreatePage() {
   }
 
   return (
-    <div className="min-h-screen cyber-grid flex items-center justify-center px-4 relative overflow-hidden">
-      {/* 顶部扫描线装饰 */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyber/20 to-transparent animate-scanline" />
-      </div>
-
-      {/* 角落装饰 */}
-      <div className="absolute top-6 left-6 text-[10px] font-mono text-cyber-dim/40 tracking-widest animate-fade-in-up">
-        SYS.TERMINAL.v0.1
-      </div>
-      <div className="absolute top-6 right-6 text-[10px] font-mono text-cyber-dim/40 tracking-widest animate-fade-in-up">
-        NODE.0721
-      </div>
-      <div className="absolute bottom-6 left-6 text-[10px] font-mono text-cyber-dim/40 tracking-widest">
-        ────────────
-      </div>
-      <div className="absolute bottom-6 right-6 text-[10px] font-mono text-cyber-dim/40 tracking-widest">
-        SECTOR.CYBER
-      </div>
-
-      {/* 主内容 */}
-      <div className="max-w-sm w-full space-y-10 relative z-10">
+    <div className="min-h-screen bg-background flex items-center justify-center px-6">
+      <div className="max-w-sm w-full space-y-10">
         {/* 标题区 */}
-        <header className="space-y-3 text-center animate-fade-in-up">
-          <div className="flex items-center justify-center gap-2">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyber/60 animate-breathe" />
-            <span className="text-[11px] font-mono tracking-[0.3em] text-cyber-dim uppercase">
-              New Identity
-            </span>
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyber/60 animate-breathe" />
+        <header className="space-y-4 text-center animate-fade-in-up">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <span className="inline-block w-8 h-px bg-border" />
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-accent-green/60"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+              <path d="M2 12h20" />
+            </svg>
+            <span className="inline-block w-8 h-px bg-border" />
           </div>
-          <h1 className="text-2xl font-extralight tracking-[0.15em] text-foreground/90">
+          <h1
+            className="text-2xl font-extralight tracking-[0.12em] text-foreground/90"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
             创建角色
           </h1>
-          <p className="text-xs text-muted-foreground/70 tracking-wider leading-relaxed">
-            在赛博空间中建立你的数字身份
+          <p className="text-sm text-muted-foreground/70 leading-relaxed tracking-wide">
+            为你的赛博旅途取一个名字
           </p>
         </header>
 
-        {/* 分隔线 */}
-        <div className="flex items-center gap-3 animate-fade-in-up-delay-1">
-          <div className="flex-1 h-px bg-gradient-to-r from-transparent to-border" />
-          <span className="text-[9px] font-mono text-cyber-dim/40 tracking-widest">FORM</span>
-          <div className="flex-1 h-px bg-gradient-to-l from-transparent to-border" />
-        </div>
-
         {/* 表单区 */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-7">
           {/* 角色名称 */}
-          <div className="space-y-2 animate-fade-in-up-delay-1">
+          <div className="space-y-2.5 animate-fade-in-up-delay-1">
             <Label
               htmlFor="characterName"
-              className="text-[11px] font-mono tracking-widest text-muted-foreground/80 uppercase"
+              className="text-xs tracking-widest text-muted-foreground/70"
+              style={{ fontFamily: 'var(--font-serif)' }}
             >
               角色名称
             </Label>
@@ -117,20 +120,21 @@ export default function CharacterCreatePage() {
               type="text"
               value={characterName}
               onChange={(e) => setCharacterName(e.target.value)}
-              placeholder="你的旅者代号"
+              placeholder="你希望被怎样称呼"
               required
-              className="cyber-input bg-input/50 border-border/60 h-10 text-sm tracking-wide placeholder:text-muted-foreground/30 focus:border-cyber/40 transition-all duration-500"
+              className="travel-input bg-input/40 border-border/70 h-11 text-sm tracking-wide placeholder:text-muted-foreground/35 focus:border-accent-green-dim/50 transition-all duration-500"
             />
-            <p className="text-[10px] text-muted-foreground/40 font-mono">
-              此名称将在赛博世界中展示
+            <p className="text-[11px] text-muted-foreground/40 pl-0.5">
+              此名称将出现在你的旅行手记中
             </p>
           </div>
 
           {/* 用户名 */}
-          <div className="space-y-2 animate-fade-in-up-delay-2">
+          <div className="space-y-2.5 animate-fade-in-up-delay-2">
             <Label
               htmlFor="username"
-              className="text-[11px] font-mono tracking-widest text-muted-foreground/80 uppercase"
+              className="text-xs tracking-widest text-muted-foreground/70"
+              style={{ fontFamily: 'var(--font-serif)' }}
             >
               用户名
             </Label>
@@ -139,20 +143,21 @@ export default function CharacterCreatePage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="登录凭证"
+              placeholder="用于登录的账号"
               required
-              className="cyber-input bg-input/50 border-border/60 h-10 text-sm tracking-wide font-mono placeholder:text-muted-foreground/30 focus:border-cyber/40 transition-all duration-500"
+              className="travel-input bg-input/40 border-border/70 h-11 text-sm tracking-wide placeholder:text-muted-foreground/35 focus:border-accent-green-dim/50 transition-all duration-500"
             />
-            <p className="text-[10px] text-muted-foreground/40 font-mono">
-              用于身份验证的唯一标识
+            <p className="text-[11px] text-muted-foreground/40 pl-0.5">
+              你的唯一身份标识
             </p>
           </div>
 
           {/* 密码 */}
-          <div className="space-y-2 animate-fade-in-up-delay-3">
+          <div className="space-y-2.5 animate-fade-in-up-delay-3">
             <Label
               htmlFor="password"
-              className="text-[11px] font-mono tracking-widest text-muted-foreground/80 uppercase"
+              className="text-xs tracking-widest text-muted-foreground/70"
+              style={{ fontFamily: 'var(--font-serif)' }}
             >
               密码
             </Label>
@@ -162,45 +167,41 @@ export default function CharacterCreatePage() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="加密密钥"
+                placeholder="设置你的密码"
                 required
-                className="cyber-input bg-input/50 border-border/60 h-10 text-sm tracking-wide font-mono placeholder:text-muted-foreground/30 focus:border-cyber/40 transition-all duration-500 pr-10"
+                className="travel-input bg-input/40 border-border/70 h-11 text-sm tracking-wide placeholder:text-muted-foreground/35 focus:border-accent-green-dim/50 transition-all duration-500 pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-cyber-dim transition-colors duration-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/35 hover:text-accent-green-dim transition-colors duration-300"
               >
                 {showPassword ? (
-                  <EyeOff className="w-3.5 h-3.5" />
+                  <EyeOff className="w-4 h-4" />
                 ) : (
-                  <Eye className="w-3.5 h-3.5" />
+                  <Eye className="w-4 h-4" />
                 )}
               </button>
             </div>
-            <p className="text-[10px] text-muted-foreground/40 font-mono">
-              建议不少于8位，含大小写与数字
+            <p className="text-[11px] text-muted-foreground/40 pl-0.5">
+              建议不少于 8 位，包含大小写与数字
             </p>
           </div>
 
           {/* 提交按钮 */}
-          <div className="pt-2 animate-fade-in-up-delay-4">
+          <div className="pt-3 animate-fade-in-up-delay-4">
             <Button
               type="submit"
               disabled={isSubmitting || !characterName || !username || !password}
-              className="w-full h-10 bg-cyber/15 border border-cyber/25 text-cyber hover:bg-cyber/25 hover:border-cyber/40 disabled:opacity-30 disabled:hover:bg-cyber/15 disabled:hover:border-cyber/25 transition-all duration-500 text-xs tracking-[0.2em] font-mono uppercase rounded-md"
+              className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 disabled:opacity-30 disabled:hover:bg-accent-green/10 disabled:hover:border-accent-green/20 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  正在接入...
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  准备中...
                 </span>
               ) : (
-                <span className="flex items-center gap-2">
-                  <span className="inline-block w-1 h-1 rounded-full bg-cyber/60" />
-                  接入赛博空间
-                  <span className="inline-block w-1 h-1 rounded-full bg-cyber/60" />
-                </span>
+                '开始旅途'
               )}
             </Button>
           </div>
@@ -208,8 +209,11 @@ export default function CharacterCreatePage() {
 
         {/* 底部信息 */}
         <div className="text-center animate-fade-in-up-delay-4">
-          <p className="text-[10px] text-muted-foreground/30 font-mono tracking-wider">
-            CYBER VOYAGE ─ 赛博旅途
+          <p
+            className="text-[11px] text-muted-foreground/30 tracking-[0.15em]"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            赛博旅途 · Cyber Voyage
           </p>
         </div>
       </div>
