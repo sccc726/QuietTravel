@@ -79,9 +79,9 @@ export async function POST(request: NextRequest) {
 
     const eventText = response.content.trim();
 
-    // 50% 概率生成彩色水墨风格图片
+    // 70% 概率生成彩色水墨风格图片
     let imageUrl: string | undefined;
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.7) {
       try {
         const imgClient = new ImageGenerationClient(config, customHeaders);
         const imgResponse = await imgClient.generate({
