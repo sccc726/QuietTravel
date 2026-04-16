@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       try {
         const imgClient = new ImageGenerationClient(config, customHeaders);
         const imgResponse = await imgClient.generate({
-          prompt: `旅行风景摄影照片，${eventText}，${destinationName ?? '旅途'}。真实自然光影，水墨画风格滤镜叠加，宁静氛围，柔和淡雅色调，如梦似幻的安静感，不要出现任务面部`,
+          prompt: `Travel landscape photograph of ${destinationName ?? 'travel'}, ${eventText}, natural soft lighting, muted pastel color grading, slightly desaturated, soft focus edges, tranquil and still atmosphere, minimal composition with negative space, modern photography, no people, no vintage effect`,
           size: '1K',
           watermark: false,
         });
