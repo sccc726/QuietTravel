@@ -194,3 +194,21 @@ body {
 .animate-float {
   animation: float 4s ease-in-out infinite;
 }
+
+/* Leaflet tooltip 文艺风格 */
+.destination-tooltip {
+  background: oklch(0.99 0.002 100 / 92%) !important;
+  backdrop-filter: blur(4px);
+  border: 1px solid oklch(0.91 0.005 100) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px oklch(0 0 0 / 5%) !important;
+  color: oklch(0.3 0.03 55) !important;
+  font-family: 'Noto Serif SC', 'Songti SC', serif !important;
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  letter-spacing: 1.5px !important;
+  padding: 4px 10px !important;
+}
+.destination-tooltip::before {
+  border-top-color: oklch(0.91 0.005 100) !important;
+}

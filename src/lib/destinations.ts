@@ -4,7 +4,7 @@
  * 设计原则：
  * - Destination 为顶层目的地（城市/区域）
  * - Spot 为目的地下的具体景点
- * - position 为地图上的相对坐标 (百分比)，便于不同尺寸地图自适应
+ * - coordinates 为真实经纬度，用于地图定位
  * - 预留 unlocked / cost 等字段，支持后续扩展挂机/经营逻辑
  */
 
@@ -12,7 +12,7 @@ export interface Spot {
   id: string;
   name: string;
   description: string;
-  /** 景点在目的地内的简短标签，如 "水乡" "古镇" */
+  /** 景点标签，如 "水乡" "古镇" */
   tag?: string;
   /** 是否已解锁，预留字段 */
   unlocked?: boolean;
@@ -25,8 +25,8 @@ export interface Destination {
   name: string;
   /** 目的地简介 */
   description: string;
-  /** 地图上的位置 (百分比 0-100) */
-  position: { x: number; y: number };
+  /** 真实经纬度坐标 */
+  coordinates: { lat: number; lng: number };
   /** 旗下的景点列表 */
   spots: Spot[];
   /** 是否已解锁，预留字段 */
@@ -41,7 +41,7 @@ export const destinations: Destination[] = [
     id: 'wuzhen',
     name: '乌镇',
     description: '枕水人家，千年古镇，江南水乡的温柔时光',
-    position: { x: 72, y: 54 },
+    coordinates: { lat: 30.7489, lng: 120.4855 },
     unlocked: true,
     spots: [
       {
@@ -65,7 +65,7 @@ export const destinations: Destination[] = [
   //   id: 'lijiang',
   //   name: '丽江',
   //   description: '雪山之下的柔软时光',
-  //   position: { x: 35, y: 62 },
+  //   coordinates: { lat: 26.8721, lng: 100.2299 },
   //   unlocked: false,
   //   cost: 100,
   //   spots: [
