@@ -28,19 +28,28 @@ export async function POST(request: NextRequest) {
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
 
-    // 2. web-search 获取景点信息
+    // 2. 多轮并行搜索，分别搜索不同维度的景点
     let searchContext = '';
     try {
       const searchClient = new SearchClient(config, customHeaders);
-      const searchResponse = await searchClient.webSearch(
-        `${destinationName} 必去景点 推荐`,
-        5,
-        true
-      );
-      searchContext = searchResponse.web_items
-        ?.slice(0, 6)
-        .map((item, i) => `[${i + 1}] ${item.title ?? ''}: ${item.snippet ?? ''}`)
-        .join('\n') ?? '';
+      const [res1, res2, res3] = await Promise.allSettled([
+        searchClient.webSearch(`${destinationName} 必去景点 推荐`, 5, true),
+        searchClient.webSearch(`${destinationName} 名胜古迹 地标`, 5, true),
+        searchClient.webSearch(`${destinationName} 自然风光 公园 寺庙`, 5, true),
+      ]);
+
+      const allItems: Array<{ title: string; snippet: string }> = [];
+      for (const res of [res1, res2, res3]) {
+        if (res.status === 'fulfilled' && res.value.web_items) {
+          for (const item of res.value.web_items) {
+            allItems.push({ title: item.title ?? '', snippet: item.snippet ?? '' });
+          }
+        }
+      }
+      searchContext = allItems
+        .slice(0, 18)
+        .map((item, i) => `[${i + 1}] ${item.title}: ${item.snippet}`)
+        .join('\n');
     } catch (searchErr) {
       console.error('[/api/destination/attractions] web-search 失败:', searchErr);
     }

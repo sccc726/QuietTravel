@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, Suspense } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
@@ -99,6 +99,13 @@ function MapPageContent() {
   const [checkinsLoading, setCheckinsLoading] = useState(false);
   const [loadedForId, setLoadedForId] = useState<string | null>(null);
 
+  // 用 ref 跟踪数据完整度，供 loadedForId 守卫使用（不触发重渲染）
+  const aiDescriptionRef = useRef(aiDescription);
+  aiDescriptionRef.current = aiDescription;
+  const allAttractionsRef = useRef(allAttractions);
+  allAttractionsRef.current = allAttractions;
+  const [loadSuccess, setLoadSuccess] = useState(false); // 三个请求是否都有有效数据
+
   // === 展示列表 ===
   const [displayAttractions, setDisplayAttractions] = useState<PlaceItem[]>([]);
   const [displayCheckins, setDisplayCheckins] = useState<PlaceItem[]>([]);
@@ -179,72 +186,84 @@ function MapPageContent() {
   }, [destinations, destinationsLoaded]);
 
   // === 选中目的地时加载 API 数据 ===
+  // loadedForId 阻止重复请求；但如果上次数据为空，重新选中时重置以允许重新请求
   useEffect(() => {
-    if (!selected || loadedForId === selected.id) return;
-
-    let cancelled = false;
-
-    async function loadDestination(dest: Destination) {
-      setDescriptionLoading(true);
-      setAttractionsLoading(true);
-      setCheckinsLoading(true);
-
-      // 三个请求独立发起，各到各显
-      // 描述（最快，无 web-search）
-      fetch('/api/destination/description', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
-        signal: AbortSignal.timeout(15000),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (!cancelled && data.description) setAiDescription(data.description);
-        })
-        .catch(() => {})
-        .finally(() => { if (!cancelled) setDescriptionLoading(false); });
-
-      // 景点
-      fetch('/api/destination/attractions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
-        signal: AbortSignal.timeout(30000),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (cancelled) return;
-          const items: PlaceItem[] = data.data?.attractions ?? [];
-          setAllAttractions(items);
-          setDisplayAttractions(pickRandom(items, 3));
-        })
-        .catch(() => {})
-        .finally(() => { if (!cancelled) setAttractionsLoading(false); });
-
-      // 打卡地
-      fetch('/api/destination/checkins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
-        signal: AbortSignal.timeout(30000),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (cancelled) return;
-          const items: PlaceItem[] = data.data?.checkins ?? [];
-          setAllCheckins(items);
-          setDisplayCheckins(pickRandom(items, 3));
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!cancelled) {
-            setCheckinsLoading(false);
-            setLoadedForId(dest.id);
-          }
-        });
+    if (!selected) return;
+    if (loadedForId === selected.id) {
+      // 已加载过：如果描述和景点都有数据则跳过，否则重置以重新请求
+      if (aiDescriptionRef.current && allAttractionsRef.current.length > 0) return;
+      // 数据不完整，重置 loadedForId 以触发重新加载
+      setLoadedForId(null);
+      return;
     }
 
-    loadDestination(selected);
+    let cancelled = false;
+    const destId = selected.id;
+
+    // 记录各请求是否已完成（无论成功/失败）
+    let descDone = false;
+    let attrDone = false;
+    let checkinDone = false;
+
+    function checkAllDone() {
+      if (descDone && attrDone && checkinDone && !cancelled) {
+        setLoadedForId(destId);
+      }
+    }
+
+    setDescriptionLoading(true);
+    setAttractionsLoading(true);
+    setCheckinsLoading(true);
+
+    // 三个请求独立发起，各到各显
+    // 描述
+    fetch('/api/destination/description', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destinationId: selected.id, destinationName: selected.name }),
+      signal: AbortSignal.timeout(30000),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!cancelled && data.description) setAiDescription(data.description);
+      })
+      .catch(() => {})
+      .finally(() => { descDone = true; if (!cancelled) setDescriptionLoading(false); checkAllDone(); });
+
+    // 景点
+    fetch('/api/destination/attractions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destinationId: selected.id, destinationName: selected.name }),
+      signal: AbortSignal.timeout(30000),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const items: PlaceItem[] = data.data?.attractions ?? [];
+        setAllAttractions(items);
+        setDisplayAttractions(pickRandom(items, 3));
+      })
+      .catch(() => {})
+      .finally(() => { attrDone = true; if (!cancelled) setAttractionsLoading(false); checkAllDone(); });
+
+    // 打卡地
+    fetch('/api/destination/checkins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destinationId: selected.id, destinationName: selected.name }),
+      signal: AbortSignal.timeout(30000),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const items: PlaceItem[] = data.data?.checkins ?? [];
+        setAllCheckins(items);
+        setDisplayCheckins(pickRandom(items, 3));
+      })
+      .catch(() => {})
+      .finally(() => { checkinDone = true; if (!cancelled) setCheckinsLoading(false); checkAllDone(); });
+
     return () => { cancelled = true; };
   }, [selected?.id, loadedForId]);
 
