@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function CharacterCreatePage() {
+  const router = useRouter();
   const [characterName, setCharacterName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -27,7 +29,6 @@ export default function CharacterCreatePage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6">
         <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
-          {/* 小图标 */}
           <div className="flex justify-center">
             <div className="w-14 h-14 rounded-full bg-accent/60 flex items-center justify-center animate-float">
               <svg
@@ -59,9 +60,16 @@ export default function CharacterCreatePage() {
             </p>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
+          <Button
+            onClick={() => router.push('/map')}
+            className="bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg px-8 h-11"
+          >
+            选择目的地
+          </Button>
+
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/40">
             <span className="inline-block w-5 h-px bg-border" />
-            <span>正在准备你的世界</span>
+            <span style={{ fontFamily: 'var(--font-serif)' }}>赛博旅途 · Cyber Voyage</span>
             <span className="inline-block w-5 h-px bg-border" />
           </div>
         </div>
