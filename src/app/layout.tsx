@@ -3,7 +3,7 @@ import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '赛博旅途 | Cyber Voyage',
+  title: '别处 · Elsewhere (Demo)',
   description: '在赛博空间中展开你的数字旅途 — 挂机与文字经营游戏',
 };
 

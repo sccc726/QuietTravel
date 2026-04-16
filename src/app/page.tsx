@@ -112,7 +112,7 @@ export default function CharacterCreatePage() {
 
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/40">
             <span className="inline-block w-5 h-px bg-border" />
-            <span style={{ fontFamily: 'var(--font-serif)' }}>赛博旅途 · Cyber Voyage</span>
+            <span style={{ fontFamily: 'var(--font-serif)' }}>别处 · Elsewhere (Demo)</span>
             <span className="inline-block w-5 h-px bg-border" />
           </div>
         </div>
@@ -151,7 +151,7 @@ export default function CharacterCreatePage() {
             创建角色
           </h1>
           <p className="text-sm text-muted-foreground/70 leading-relaxed tracking-wide">
-            为你的赛博旅途取一个名字
+            为你的旅途取一个名字
           </p>
         </header>
 
@@ -205,7 +205,7 @@ export default function CharacterCreatePage() {
             className="text-[11px] text-muted-foreground/30 tracking-[0.15em]"
             style={{ fontFamily: 'var(--font-serif)' }}
           >
-            赛博旅途 · Cyber Voyage
+            别处 · Elsewhere (Demo)
           </p>
         </div>
       </div>
