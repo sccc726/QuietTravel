@@ -441,7 +441,12 @@ function MapPageContent() {
               </div>
               <p className="text-xs text-muted-foreground/60 mb-4 leading-relaxed pl-6 min-h-[1.2em]">
                 {descriptionLoading ? (
-                  <span className="inline-block w-12 h-px bg-muted-foreground/20 animate-pulse" />
+                  <span
+                    className="text-muted-foreground/30 tracking-wider animate-pulse"
+                    style={{ fontFamily: 'var(--font-serif)' }}
+                  >
+                    正在了解{selected.name}...
+                  </span>
                 ) : (
                   aiDescription
                 )}
@@ -461,11 +466,12 @@ function MapPageContent() {
                     </span>
                   </div>
                   {attractionsLoading ? (
-                    <div className="space-y-2">
-                      {[1, 2, 3].map(i => (
-                        <div key={i} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
-                      ))}
-                    </div>
+                    <p
+                      className="text-[11px] text-muted-foreground/30 tracking-wider py-6 text-center animate-pulse"
+                      style={{ fontFamily: 'var(--font-serif)' }}
+                    >
+                      正在搜索{selected.name}的景点...
+                    </p>
                   ) : displayAttractions.length > 0 ? (
                     <div className="space-y-2">
                       {displayAttractions.map(item => (
@@ -495,11 +501,12 @@ function MapPageContent() {
                     </span>
                   </div>
                   {checkinsLoading ? (
-                    <div className="space-y-2">
-                      {[1, 2, 3].map(i => (
-                        <div key={i} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
-                      ))}
-                    </div>
+                    <p
+                      className="text-[11px] text-muted-foreground/30 tracking-wider py-6 text-center animate-pulse"
+                      style={{ fontFamily: 'var(--font-serif)' }}
+                    >
+                      正在寻找{selected.name}的打卡地...
+                    </p>
                   ) : displayCheckins.length > 0 ? (
                     <div className="space-y-2">
                       {displayCheckins.map(item => (
