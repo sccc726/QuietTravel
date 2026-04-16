@@ -19,9 +19,28 @@ interface MapInnerProps {
   onDestinationClick: (dest: Destination) => void;
 }
 
-/** 中国中心视角，展示大部分国土 */
+/** 中国中心视角 */
 const INITIAL_CENTER: L.LatLngExpression = [34.5, 108];
 const INITIAL_ZOOM = 5;
+
+/** 创建橙色脉冲光点图标 */
+function createMarkerIcon(isSelected: boolean): L.DivIcon {
+  const selectedRing = isSelected
+    ? '<div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid oklch(0.72 0.17 55 / 45%);"></div>'
+    : '';
+  return L.divIcon({
+    className: 'destination-marker-wrapper',
+    html: `
+      <div class="destination-marker">
+        <div class="pulse"></div>
+        <div class="core"></div>
+        ${selectedRing}
+      </div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
 
 export default function MapInner({
   destinations,
@@ -31,6 +50,11 @@ export default function MapInner({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  // 用 ref 存储最新的回调，避免 useEffect 依赖不稳定回调
+  const onClickRef = useRef(onDestinationClick);
+  useEffect(() => {
+    onClickRef.current = onDestinationClick;
+  }, [onDestinationClick]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -52,82 +76,46 @@ export default function MapInner({
       }
     ).addTo(map);
 
+    // 首次添加所有目的地标记
+    for (const dest of destinations) {
+      const marker = L.marker([dest.coordinates.lat, dest.coordinates.lng], {
+        icon: createMarkerIcon(false),
+      })
+        .addTo(map)
+        .on('click', () => {
+          onClickRef.current(dest);
+        });
+
+      marker.bindTooltip(dest.name, {
+        direction: 'top',
+        offset: [0, -18],
+        className: 'destination-tooltip',
+        permanent: false,
+      });
+
+      markersRef.current.set(dest.id, marker);
+    }
+
+    // 确保容器尺寸正确
+    map.invalidateSize();
+
     mapRef.current = map;
 
     return () => {
       map.remove();
       mapRef.current = null;
+      markersRef.current.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [destinations]);
 
-  /** 创建自定义橙色光点图标 */
-  const createMarkerIcon = (isSelected: boolean) => {
-    const selectedRing = isSelected
-      ? '<div style="position:absolute;inset:-4px;border-radius:50%;border:1.5px solid oklch(0.72 0.17 55 / 50%);"></div>'
-      : '';
-    return L.divIcon({
-      className: '',
-      html: `
-        <div class="destination-marker">
-          <div class="pulse"></div>
-          <div class="core"></div>
-          ${selectedRing}
-        </div>
-      `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
-    });
-  };
-
-  /** 同步标记到地图 */
+  // 选中态更新 — 只切换图标
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const currentIds = new Set(destinations.map(d => d.id));
-
-    // 移除已不存在的标记
     for (const [id, marker] of markersRef.current) {
-      if (!currentIds.has(id)) {
-        map.removeLayer(marker);
-        markersRef.current.delete(id);
-      }
+      marker.setIcon(createMarkerIcon(id === selectedId));
     }
+  }, [selectedId]);
 
-    // 添加或更新标记
-    for (const dest of destinations) {
-      const existing = markersRef.current.get(dest.id);
-      const isSelected = selectedId === dest.id;
-
-      if (existing) {
-        // 更新图标（选中态）
-        existing.setIcon(createMarkerIcon(isSelected));
-      } else {
-        // 新增标记
-        const marker = L.marker([dest.coordinates.lat, dest.coordinates.lng], {
-          icon: createMarkerIcon(false),
-        })
-          .addTo(map)
-          .on('click', () => {
-            onDestinationClick(dest);
-          });
-
-        // 名称 tooltip
-        marker.bindTooltip(dest.name, {
-          direction: 'top',
-          offset: [0, -18],
-          className: 'destination-tooltip',
-          permanent: false,
-        });
-
-        markersRef.current.set(dest.id, marker);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinations, selectedId, onDestinationClick]);
-
-  /** 选中目的地时平移到该位置 */
+  // 选中目的地时飞到该位置
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedId) return;

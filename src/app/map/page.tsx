@@ -1,99 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { destinations, type Destination, type Spot } from '@/lib/destinations';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-/** 橙色光点脉冲动画样式 */
-const markerStyles = `
-@keyframes orangePulse {
-  0% { transform: scale(1); opacity: 0.7; }
-  50% { transform: scale(2.2); opacity: 0; }
-  100% { transform: scale(1); opacity: 0.7; }
-}
-@keyframes orangeCore {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.75; }
-}
-.destination-marker {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.destination-marker .pulse {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: oklch(0.72 0.17 55 / 25%);
-  animation: orangePulse 2.5s ease-out infinite;
-}
-.destination-marker .core {
-  position: relative;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: oklch(0.72 0.17 55);
-  box-shadow: 0 0 8px oklch(0.72 0.17 55 / 50%);
-  animation: orangeCore 2.5s ease-in-out infinite;
-  z-index: 1;
-}
-.destination-marker .label {
-  position: absolute;
-  top: -24px;
-  white-space: nowrap;
-  font-family: 'Noto Serif SC', 'Songti SC', serif;
-  font-size: 13px;
-  font-weight: 300;
-  letter-spacing: 2px;
-  color: oklch(0.35 0.04 55);
-  text-shadow: 0 0 4px oklch(1 0 0 / 80%), 0 0 8px oklch(1 0 0 / 40%);
-  pointer-events: none;
-}
-
-/* Leaflet 容器样式覆盖 — 匹配文艺留白风格 */
-.leaflet-container {
-  background: oklch(0.96 0.003 100) !important;
-  font-family: 'LXGW WenKai', sans-serif !important;
-}
-.leaflet-control-zoom {
-  border: none !important;
-  box-shadow: 0 1px 4px oklch(0 0 0 / 6%) !important;
-  border-radius: 8px !important;
-  overflow: hidden;
-}
-.leaflet-control-zoom a {
-  background: oklch(0.99 0.002 100) !important;
-  color: oklch(0.4 0.02 80) !important;
-  border: none !important;
-  border-bottom: 1px solid oklch(0.92 0.005 100) !important;
-  width: 32px !important;
-  height: 32px !important;
-  line-height: 32px !important;
-  font-size: 16px !important;
-}
-.leaflet-control-zoom a:last-child {
-  border-bottom: none !important;
-}
-.leaflet-control-zoom a:hover {
-  background: oklch(0.96 0.003 100) !important;
-}
-.leaflet-control-attribution {
-  background: oklch(0.98 0.002 100 / 80%) !important;
-  color: oklch(0.6 0.01 80) !important;
-  font-size: 10px !important;
-  padding: 2px 6px !important;
-}
-.leaflet-control-attribution a {
-  color: oklch(0.5 0.03 160) !important;
-}
-`;
-
-/** 动态加载 MapInner，禁用 SSR（Leaflet 依赖 window/DOM） */
+/** 动态加载地图组件，禁用 SSR（Leaflet 依赖 window/DOM） */
 const MapInner = dynamic(() => import('./components/map-inner'), {
   ssr: false,
   loading: () => (
@@ -112,9 +25,9 @@ export default function MapPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<Destination | null>(null);
 
-  const handleDestinationClick = (dest: Destination) => {
+  const handleDestinationClick = useCallback((dest: Destination) => {
     setSelected(prev => (prev?.id === dest.id ? null : dest));
-  };
+  }, []);
 
   const handleSpotClick = (_spot: Spot) => {
     // 后续扩展：进入景点详情/经营页面
@@ -122,8 +35,6 @@ export default function MapPage() {
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <style>{markerStyles}</style>
-
       {/* 顶部栏 */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border/40 bg-background/95 backdrop-blur-sm z-20 shrink-0 animate-fade-in-up">
         <button

@@ -196,6 +196,88 @@ body {
   animation: float 4s ease-in-out infinite;
 }
 
+/* 清除 Leaflet divIcon 默认样式 */
+.leaflet-div-icon,
+.destination-marker-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 橙色光点脉冲动画 */
+@keyframes orangePulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(1); opacity: 0.7; }
+}
+@keyframes orangeCore {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+.destination-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+}
+.destination-marker .pulse {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: oklch(0.72 0.17 55 / 25%);
+  animation: orangePulse 2.5s ease-out infinite;
+}
+.destination-marker .core {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: oklch(0.72 0.17 55);
+  box-shadow: 0 0 8px oklch(0.72 0.17 55 / 50%);
+  animation: orangeCore 2.5s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* Leaflet 容器样式覆盖 */
+.leaflet-container {
+  background: oklch(0.96 0.003 100) !important;
+  font-family: 'LXGW WenKai', sans-serif !important;
+}
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 6%) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a {
+  background: oklch(0.99 0.002 100) !important;
+  color: oklch(0.4 0.02 80) !important;
+  border: none !important;
+  border-bottom: 1px solid oklch(0.92 0.005 100) !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  font-size: 16px !important;
+}
+.leaflet-control-zoom a:last-child {
+  border-bottom: none !important;
+}
+.leaflet-control-zoom a:hover {
+  background: oklch(0.96 0.003 100) !important;
+}
+.leaflet-control-attribution {
+  background: oklch(0.98 0.002 100 / 80%) !important;
+  color: oklch(0.6 0.01 80) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+}
+.leaflet-control-attribution a {
+  color: oklch(0.5 0.03 160) !important;
+}
+
 /* Leaflet tooltip 文艺风格 */
 .destination-tooltip {
   background: oklch(0.99 0.002 100 / 92%) !important;
