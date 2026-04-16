@@ -6,14 +6,24 @@
  * unlocked / cost: 预留字段，支持后续扩展挂机/经营逻辑
  */
 
-export interface Spot {
+/** 基础地点条目 — 景点和打卡地共用 */
+export interface PlaceItem {
   id: string;
   name: string;
+  /** 一句话简介 */
   description: string;
+  /** 标签，如 "水乡" "夜景" "咖啡馆" "网红" */
   tag?: string;
+  /** 从搜索结果提取的关键词，供后续生成游记用 */
+  keywords: string[];
+  /** 游客评价摘要，供后续生成游记用 */
+  reviews: string[];
   unlocked?: boolean;
   cost?: number;
 }
+
+/** 向后兼容旧 Spot 类型 */
+export type Spot = PlaceItem;
 
 export interface Destination {
   id: string;
@@ -22,7 +32,7 @@ export interface Destination {
   description: string;
   /** 真实经纬度坐标 */
   coordinates: { lat: number; lng: number };
-  /** 旗下的景点列表 */
+  /** 旗下的景点列表（静态数据，仅作降级） */
   spots: Spot[];
   /** 是否已解锁，预留字段 */
   unlocked?: boolean;
@@ -41,6 +51,18 @@ export interface DestinationInfo {
   summary: string;
 }
 
+/** 目的地景点列表 — 由 web-search 获取并缓存 */
+export interface DestinationAttractions {
+  id: string;
+  attractions: PlaceItem[];
+}
+
+/** 目的地打卡地列表 — 由 web-search 获取并缓存 */
+export interface DestinationCheckins {
+  id: string;
+  checkins: PlaceItem[];
+}
+
 /** 全部目的地数据 — 后续在此数组中追加即可扩展 */
 export const destinations: Destination[] = [
   {
@@ -55,6 +77,8 @@ export const destinations: Destination[] = [
         name: '东栅',
         description: '清晨薄雾中的老街，枕河而眠的原始水乡',
         tag: '水乡',
+        keywords: [],
+        reviews: [],
         unlocked: true,
       },
       {
@@ -62,6 +86,8 @@ export const destinations: Destination[] = [
         name: '西栅',
         description: '灯火阑珊的夜色里，石桥倒影如画',
         tag: '夜景',
+        keywords: [],
+        reviews: [],
         unlocked: true,
       },
     ],

@@ -1,9 +1,17 @@
 import fs from 'fs';
 import path from 'path';
-import type { DestinationInfo } from './destinations';
+import type { DestinationInfo, DestinationAttractions, DestinationCheckins } from './destinations';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
-const CACHE_FILE = path.join(CACHE_DIR, 'destination-info.json');
+
+/** 缓存文件映射 */
+const CACHE_FILES = {
+  info: path.join(CACHE_DIR, 'destination-info.json'),
+  attractions: path.join(CACHE_DIR, 'destination-attractions.json'),
+  checkins: path.join(CACHE_DIR, 'destination-checkins.json'),
+} as const;
+
+type CacheKind = keyof typeof CACHE_FILES;
 
 /** 确保缓存目录存在 */
 function ensureCacheDir() {
@@ -12,33 +20,43 @@ function ensureCacheDir() {
   }
 }
 
-/** 读取全部缓存 */
-function readCache(): Record<string, DestinationInfo> {
+/** 通用缓存读取 */
+function readCache<T>(kind: CacheKind): Record<string, T> {
   ensureCacheDir();
-  if (!fs.existsSync(CACHE_FILE)) return {};
+  const file = CACHE_FILES[kind];
+  if (!fs.existsSync(file)) return {};
   try {
-    const raw = fs.readFileSync(CACHE_FILE, 'utf-8');
+    const raw = fs.readFileSync(file, 'utf-8');
     return JSON.parse(raw);
   } catch {
     return {};
   }
 }
 
-/** 写入全部缓存 */
-function writeCache(data: Record<string, DestinationInfo>) {
+/** 通用缓存写入 */
+function writeCache<T>(kind: CacheKind, data: Record<string, T>) {
   ensureCacheDir();
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(CACHE_FILES[kind], JSON.stringify(data, null, 2), 'utf-8');
 }
 
-/** 获取某个目的地的缓存信息，不存在则返回 null */
-export function getCachedInfo(id: string): DestinationInfo | null {
-  const cache = readCache();
+/** 通用：获取某条缓存 */
+function getCached<T>(kind: CacheKind, id: string): T | null {
+  const cache = readCache<T>(kind);
   return cache[id] ?? null;
 }
 
-/** 存储某个目的地的信息到缓存 */
-export function setCachedInfo(info: DestinationInfo) {
-  const cache = readCache();
-  cache[info.id] = info;
-  writeCache(cache);
+/** 通用：写入某条缓存 */
+function setCached<T extends { id: string }>(kind: CacheKind, item: T) {
+  const cache = readCache<T>(kind);
+  cache[item.id] = item;
+  writeCache(kind, cache);
 }
+
+export const getCachedInfo = (id: string) => getCached<DestinationInfo>('info', id);
+export const setCachedInfo = (item: DestinationInfo) => setCached('info', item);
+
+export const getCachedAttractions = (id: string) => getCached<DestinationAttractions>('attractions', id);
+export const setCachedAttractions = (item: DestinationAttractions) => setCached('attractions', item);
+
+export const getCachedCheckins = (id: string) => getCached<DestinationCheckins>('checkins', id);
+export const setCachedCheckins = (item: DestinationCheckins) => setCached('checkins', item);
