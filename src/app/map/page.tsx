@@ -95,7 +95,8 @@ function MapPageContent() {
   // === 全量景点/打卡地数据 ===
   const [allAttractions, setAllAttractions] = useState<PlaceItem[]>([]);
   const [allCheckins, setAllCheckins] = useState<PlaceItem[]>([]);
-  const [placesLoading, setPlacesLoading] = useState(false);
+  const [attractionsLoading, setAttractionsLoading] = useState(false);
+  const [checkinsLoading, setCheckinsLoading] = useState(false);
   const [loadedForId, setLoadedForId] = useState<string | null>(null);
 
   // === 展示列表 ===
@@ -185,59 +186,59 @@ function MapPageContent() {
 
     async function loadDestination(dest: Destination) {
       setDescriptionLoading(true);
-      setPlacesLoading(true);
+      setAttractionsLoading(true);
+      setCheckinsLoading(true);
 
-      const [descRes, attrRes, checkinRes] = await Promise.allSettled([
-        fetch('/api/destination/description', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
-        }),
-        fetch('/api/destination/attractions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
-        }),
-        fetch('/api/destination/checkins', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
-        }),
-      ]);
+      // 三个请求独立发起，各到各显
+      // 描述（最快，无 web-search）
+      fetch('/api/destination/description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!cancelled && data.description) setAiDescription(data.description);
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setDescriptionLoading(false); });
 
-      if (cancelled) return;
+      // 景点
+      fetch('/api/destination/attractions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          const items: PlaceItem[] = data.data?.attractions ?? [];
+          setAllAttractions(items);
+          setDisplayAttractions(pickRandom(items, 3));
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setAttractionsLoading(false); });
 
-      let newAttractions: PlaceItem[] = [];
-      let newCheckins: PlaceItem[] = [];
-
-      if (descRes.status === 'fulfilled') {
-        try {
-          const data = await descRes.value.json();
-          if (data.description) setAiDescription(data.description);
-        } catch { /* */ }
-      }
-      setDescriptionLoading(false);
-
-      if (attrRes.status === 'fulfilled') {
-        try {
-          const data = await attrRes.value.json();
-          if (data.data?.attractions) newAttractions = data.data.attractions;
-        } catch { /* */ }
-      }
-
-      if (checkinRes.status === 'fulfilled') {
-        try {
-          const data = await checkinRes.value.json();
-          if (data.data?.checkins) newCheckins = data.data.checkins;
-        } catch { /* */ }
-      }
-
-      setAllAttractions(newAttractions);
-      setAllCheckins(newCheckins);
-      setLoadedForId(dest.id);
-      setDisplayAttractions(pickRandom(newAttractions, 3));
-      setDisplayCheckins(pickRandom(newCheckins, 3));
-      setPlacesLoading(false);
+      // 打卡地
+      fetch('/api/destination/checkins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          const items: PlaceItem[] = data.data?.checkins ?? [];
+          setAllCheckins(items);
+          setDisplayCheckins(pickRandom(items, 3));
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) {
+            setCheckinsLoading(false);
+            setLoadedForId(dest.id);
+          }
+        });
     }
 
     loadDestination(selected);
@@ -459,7 +460,7 @@ function MapPageContent() {
                       景点
                     </span>
                   </div>
-                  {placesLoading ? (
+                  {attractionsLoading ? (
                     <div className="space-y-2">
                       {[1, 2, 3].map(i => (
                         <div key={i} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
@@ -493,7 +494,7 @@ function MapPageContent() {
                       打卡地
                     </span>
                   </div>
-                  {placesLoading ? (
+                  {checkinsLoading ? (
                     <div className="space-y-2">
                       {[1, 2, 3].map(i => (
                         <div key={i} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
