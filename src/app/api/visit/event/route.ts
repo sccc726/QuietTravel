@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { LLMClient, ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedAttractions, getCachedCheckins } from '@/lib/destination-cache';
 
 export async function POST(request: NextRequest) {
@@ -77,7 +77,29 @@ export async function POST(request: NextRequest) {
       thinking: 'disabled',
     });
 
-    return NextResponse.json({ event: response.content.trim() });
+    const eventText = response.content.trim();
+
+    // 50% 概率生成彩色水墨风格图片
+    let imageUrl: string | undefined;
+    if (Math.random() < 0.5) {
+      try {
+        const imgClient = new ImageGenerationClient(config, customHeaders);
+        const imgResponse = await imgClient.generate({
+          prompt: `彩色水墨画风格，安静悠远的意境。${eventText}，${destinationName ?? '旅途'}。淡雅着色，留白构图，中国水墨画技法，宁静致远，不出现人物面部`,
+          size: '2K',
+          watermark: false,
+        });
+        const helper = imgClient.getResponseHelper(imgResponse);
+        if (helper.success && helper.imageUrls.length > 0) {
+          imageUrl = helper.imageUrls[0];
+        }
+      } catch (imgErr) {
+        console.error('[/api/visit/event] 图片生成失败:', imgErr);
+        // 图片生成失败不影响事件文本返回
+      }
+    }
+
+    return NextResponse.json({ event: eventText, imageUrl });
   } catch (error) {
     console.error('[/api/visit/event] 生成事件失败:', error);
     return NextResponse.json(

@@ -4,6 +4,12 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Footprints, FastForward } from 'lucide-react';
 
+/** 事件数据结构（含可选图片） */
+interface EventData {
+  text: string;
+  imageUrl?: string;
+}
+
 /** 生成随机间隔时间（20~60分钟，单位毫秒） */
 function randomInterval(): number {
   const minMs = 20 * 60 * 1000;
@@ -29,10 +35,11 @@ function TouringContent() {
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
 
   // 事件状态
-  const [events, setEvents] = useState<string[]>([]);
-  const [currentEvent, setCurrentEvent] = useState<string>('');
+  const [events, setEvents] = useState<EventData[]>([]);
+  const [pendingEvent, setPendingEvent] = useState<EventData | null>(null);
   const [displayedEvent, setDisplayedEvent] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showingImage, setShowingImage] = useState<string | undefined>(undefined);
 
   // 计时状态
   const [intervalMs, setIntervalMs] = useState(0);
@@ -48,6 +55,8 @@ function TouringContent() {
   eventsRef.current = events;
   const timerStartRef = useRef(0);
   const intervalMsRef = useRef(0);
+  const pendingEventRef = useRef<EventData | null>(null);
+  pendingEventRef.current = pendingEvent;
 
   /** 请求下一个随机事件 */
   const fetchNextEvent = useCallback(async () => {
@@ -59,15 +68,21 @@ function TouringContent() {
           destinationId,
           destinationName,
           placeId,
-          previousEvents: eventsRef.current,
+          previousEvents: eventsRef.current.map(e => e.text),
         }),
       });
       const data = await res.json();
       if (data.event) {
-        setCurrentEvent(data.event);
+        const eventData: EventData = {
+          text: data.event,
+          imageUrl: data.imageUrl || undefined,
+        };
+        setPendingEvent(eventData);
       }
     } catch {
-      setCurrentEvent('你沿着小路慢慢走着，光影从树叶间洒落，风里带着淡淡的花香。');
+      setPendingEvent({
+        text: '你沿着小路慢慢走着，光影从树叶间洒落，风里带着淡淡的花香。',
+      });
     }
   }, [destinationId, destinationName, placeId]);
 
@@ -82,23 +97,31 @@ function TouringContent() {
     intervalMsRef.current = interval;
   }, []);
 
-  /** 显示下个事件（打字机效果） */
+  /** 显示下个事件（打字机效果 + 图片淡入） */
   const showEvent = useCallback(
-    (eventText: string) => {
+    (eventData: EventData) => {
       setIsWaiting(false);
       setShowStroll(false);
       setIsTyping(true);
       setDisplayedEvent('');
+      setShowingImage(undefined);
+
+      // 图片延迟淡入（在打字机开始后一小段时间）
+      if (eventData.imageUrl) {
+        setTimeout(() => {
+          setShowingImage(eventData.imageUrl);
+        }, 300);
+      }
 
       let idx = 0;
       const timer = setInterval(() => {
         idx++;
-        setDisplayedEvent(eventText.slice(0, idx));
-        if (idx >= eventText.length) {
+        setDisplayedEvent(eventData.text.slice(0, idx));
+        if (idx >= eventData.text.length) {
           clearInterval(timer);
           setIsTyping(false);
-          setCurrentEvent(''); // 清空当前事件，避免和已完成列表重复显示
-          setEvents(prev => [...prev, eventText]);
+          setPendingEvent(null);
+          setEvents(prev => [...prev, eventData]);
         }
       }, 50);
     },
@@ -129,14 +152,15 @@ function TouringContent() {
       // 时间到，触发事件
       if (remaining <= 0) {
         clearInterval(tick);
-        if (currentEvent) {
-          showEvent(currentEvent);
+        const evt = pendingEventRef.current;
+        if (evt) {
+          showEvent(evt);
         }
       }
     }, 1000);
 
     return () => clearInterval(tick);
-  }, [isWaiting, currentEvent, showEvent]);
+  }, [isWaiting, showEvent]);
 
   // 事件显示完毕后：如果还有下一个，开始新计时
   useEffect(() => {
@@ -154,8 +178,9 @@ function TouringContent() {
 
   /** "随意逛逛" — 立即显示事件 */
   const handleStroll = () => {
-    if (currentEvent) {
-      showEvent(currentEvent);
+    const evt = pendingEventRef.current;
+    if (evt) {
+      showEvent(evt);
     }
   };
 
@@ -198,25 +223,47 @@ function TouringContent() {
           {events.length > 0 && (
             <div className="space-y-3">
               {events.map((ev, i) => (
-                <div
-                  key={i}
-                  className="text-sm text-muted-foreground/55 leading-relaxed pl-4 border-l-2 border-accent-green/20"
-                  style={{ fontFamily: 'var(--font-sans)' }}
-                >
-                  {ev}
+                <div key={i} className="space-y-2">
+                  {ev.imageUrl && (
+                    <div className="w-full rounded-lg overflow-hidden opacity-70">
+                      <img
+                        src={ev.imageUrl}
+                        alt=""
+                        className="w-full h-auto object-cover rounded-lg"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div
+                    className="text-sm text-muted-foreground/55 leading-relaxed pl-4 border-l-2 border-accent-green/20"
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  >
+                    {ev.text}
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* 当前事件（打字机） */}
+          {/* 当前事件（打字机 + 图片淡入） */}
           {isTyping && !isWaiting && (
-            <div
-              className="text-sm text-foreground/75 leading-relaxed pl-4 border-l-2 border-accent-green/40"
-              style={{ fontFamily: 'var(--font-sans)' }}
-            >
-              {displayedEvent}
-              <span className="inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 animate-blink" />
+            <div className="space-y-2">
+              {showingImage && (
+                <div className="w-full rounded-lg overflow-hidden animate-fade-in-up">
+                  <img
+                    src={showingImage}
+                    alt=""
+                    className="w-full h-auto object-cover rounded-lg"
+                  />
+                </div>
+              )}
+              <div
+                className="text-sm text-foreground/75 leading-relaxed pl-4 border-l-2 border-accent-green/40"
+                style={{ fontFamily: 'var(--font-sans)' }}
+              >
+                {displayedEvent}
+                <span className="inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 animate-blink" />
+              </div>
             </div>
           )}
 
