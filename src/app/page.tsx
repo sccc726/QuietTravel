@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,50 @@ export default function CharacterCreatePage() {
   const [characterName, setCharacterName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [greeting, setGreeting] = useState('');
+  const [displayedGreeting, setDisplayedGreeting] = useState('');
+  const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 提交后请求 AI 问候语
+  useEffect(() => {
+    if (!submitted) return;
+
+    fetch('/api/greeting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ characterName }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.greeting) {
+          setGreeting(data.greeting);
+        }
+      })
+      .catch(() => {
+        setGreeting(`${characterName}，愿这段旅途如水般温柔，我们慢慢走。`);
+      });
+  }, [submitted, characterName]);
+
+  // 打字机效果
+  useEffect(() => {
+    if (!greeting) return;
+
+    let index = 0;
+    typingRef.current = setInterval(() => {
+      index++;
+      setDisplayedGreeting(greeting.slice(0, index));
+      if (index >= greeting.length && typingRef.current) {
+        clearInterval(typingRef.current);
+        typingRef.current = null;
+      }
+    }, 60);
+
+    return () => {
+      if (typingRef.current) {
+        clearInterval(typingRef.current);
+      }
+    };
+  }, [greeting]);
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -19,7 +63,7 @@ export default function CharacterCreatePage() {
     setTimeout(() => {
       setIsSubmitting(false);
       setSubmitted(true);
-    }, 1500);
+    }, 800);
   };
 
   if (submitted) {
@@ -51,9 +95,11 @@ export default function CharacterCreatePage() {
             >
               旅途将启
             </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              <span className="text-accent-green font-medium">{characterName}</span>
-              ，你的旅行手记已经备好
+            <p className="text-sm text-muted-foreground leading-relaxed min-h-[3em]">
+              {displayedGreeting || '\u00A0'}
+              <span
+                className={`inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 ${greeting && displayedGreeting.length >= greeting.length ? 'animate-blink' : ''}`}
+              />
             </p>
           </div>
 
