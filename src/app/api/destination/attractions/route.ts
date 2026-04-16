@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
 - name: 景点名称（string）
 - description: 一句话简介，15字以内（string）
 - tag: 一个简短标签，2字以内（string）
-- keywords: 关键词数组，2-3个（string[]）
-- reviews: 游客评价摘要数组，1-2条，每条20字以内（string[]）
+- keywords: 关键词数组，6个（string[]）
+- reviews: 游客评价摘要数组，3条，每条20字以内（string[]）
 
 提取 6-8 个最知名的景点。只返回 JSON 数组，不要其他文字。`,
         },

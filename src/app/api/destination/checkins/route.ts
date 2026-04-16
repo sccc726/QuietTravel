@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
 - name: 打卡地名称（string）
 - description: 一句话简介，15字以内（string）
 - tag: 类型标签，如"餐厅""咖啡馆""出片点""酒吧"（string）
-- keywords: 关键词数组，2-3个（string[]）
-- reviews: 游客评价摘要数组，1-2条，每条20字以内（string[]）
+- keywords: 关键词数组，6个（string[]）
+- reviews: 游客评价摘要数组，3条，每条20字以内（string[]）
 
 提取 6-8 个有特色的打卡地。只返回 JSON 数组，不要其他文字。`,
         },
