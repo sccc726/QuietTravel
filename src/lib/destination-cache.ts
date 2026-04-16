@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import type { DestinationInfo, DestinationAttractions, DestinationCheckins } from './destinations';
 
-const CACHE_DIR = path.join(process.cwd(), '.cache');
+/** 根据环境选择可写缓存目录：开发环境用项目 .cache，生产环境用 /tmp */
+const CACHE_DIR = process.env.COZE_PROJECT_ENV === 'PROD'
+  ? path.join('/tmp', 'cyber-voyage-cache')
+  : path.join(process.cwd(), '.cache');
 
 /** 缓存文件映射 */
 const CACHE_FILES = {
