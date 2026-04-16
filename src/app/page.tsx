@@ -5,14 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export default function CharacterCreatePage() {
   const router = useRouter();
   const [characterName, setCharacterName] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -137,70 +134,11 @@ export default function CharacterCreatePage() {
             </p>
           </div>
 
-          {/* 用户名 */}
-          <div className="space-y-2.5 animate-fade-in-up-delay-2">
-            <Label
-              htmlFor="username"
-              className="text-xs tracking-widest text-muted-foreground/70"
-              style={{ fontFamily: 'var(--font-serif)' }}
-            >
-              用户名
-            </Label>
-            <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="用于登录的账号"
-              required
-              className="travel-input bg-input/40 border-border/70 h-11 text-sm tracking-wide placeholder:text-muted-foreground/35 focus:border-accent-green-dim/50 transition-all duration-500"
-            />
-            <p className="text-[11px] text-muted-foreground/40 pl-0.5">
-              你的唯一身份标识
-            </p>
-          </div>
-
-          {/* 密码 */}
-          <div className="space-y-2.5 animate-fade-in-up-delay-3">
-            <Label
-              htmlFor="password"
-              className="text-xs tracking-widest text-muted-foreground/70"
-              style={{ fontFamily: 'var(--font-serif)' }}
-            >
-              密码
-            </Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="设置你的密码"
-                required
-                className="travel-input bg-input/40 border-border/70 h-11 text-sm tracking-wide placeholder:text-muted-foreground/35 focus:border-accent-green-dim/50 transition-all duration-500 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/35 hover:text-accent-green-dim transition-colors duration-300"
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-            <p className="text-[11px] text-muted-foreground/40 pl-0.5">
-              建议不少于 8 位，包含大小写与数字
-            </p>
-          </div>
-
           {/* 提交按钮 */}
-          <div className="pt-3 animate-fade-in-up-delay-4">
+          <div className="pt-3 animate-fade-in-up-delay-2">
             <Button
               type="submit"
-              disabled={isSubmitting || !characterName || !username || !password}
+              disabled={isSubmitting || !characterName}
               className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 disabled:opacity-30 disabled:hover:bg-accent-green/10 disabled:hover:border-accent-green/20 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg"
             >
               {isSubmitting ? (
@@ -216,7 +154,7 @@ export default function CharacterCreatePage() {
         </form>
 
         {/* 底部信息 */}
-        <div className="text-center animate-fade-in-up-delay-4">
+        <div className="text-center animate-fade-in-up-delay-3">
           <p
             className="text-[11px] text-muted-foreground/30 tracking-[0.15em]"
             style={{ fontFamily: 'var(--font-serif)' }}
