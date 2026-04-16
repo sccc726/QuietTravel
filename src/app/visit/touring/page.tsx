@@ -174,7 +174,7 @@ function TouringContent() {
       {/* 顶部 */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border/40 shrink-0">
         <button
-          onClick={() => router.push('/map')}
+          onClick={() => router.push(`/map?visited=${encodeURIComponent(placeId)}`)}
           className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground/60 transition-colors duration-300"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -254,7 +254,7 @@ function TouringContent() {
                 此次游览结束
               </p>
               <button
-                onClick={() => router.push('/map')}
+                onClick={() => router.push(`/map?visited=${encodeURIComponent(placeId)}`)}
                 className="text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors duration-300 tracking-wider"
               >
                 返回地图
