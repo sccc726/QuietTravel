@@ -316,7 +316,7 @@ function TouringContent() {
                 className="text-xs text-muted-foreground/35 tracking-wider"
                 style={{ fontFamily: 'var(--font-serif)' }}
               >
-                漫步中...
+                {pendingEvent?.imageUrl ? '摄影中...' : '漫步中...'}
               </p>
 
               {/* 进度条 */}
