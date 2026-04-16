@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
             name: String(item.name ?? ''),
             description: String(item.description ?? ''),
             tag: item.tag ? String(item.tag) : undefined,
+            type: 'checkin' as const,
             keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
             reviews: Array.isArray(item.reviews) ? item.reviews.map(String) : [],
           }));
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
             name: title,
             description: item.snippet?.slice(0, 20) ?? '',
             tag: '打卡地',
+            type: 'checkin' as const,
             keywords: [],
             reviews: item.snippet ? [item.snippet.slice(0, 30)] : [],
           });

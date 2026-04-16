@@ -6,6 +6,9 @@
  * unlocked / cost: 预留字段，支持后续扩展挂机/经营逻辑
  */
 
+/** 地点类型 */
+export type PlaceType = 'attraction' | 'checkin';
+
 /** 基础地点条目 — 景点和打卡地共用 */
 export interface PlaceItem {
   id: string;
@@ -14,6 +17,8 @@ export interface PlaceItem {
   description: string;
   /** 标签，如 "水乡" "夜景" "咖啡馆" "网红" */
   tag?: string;
+  /** 地点类型 */
+  type: PlaceType;
   /** 从搜索结果提取的关键词，供后续生成游记用 */
   keywords: string[];
   /** 游客评价摘要，供后续生成游记用 */
@@ -77,6 +82,7 @@ export const destinations: Destination[] = [
         name: '东栅',
         description: '清晨薄雾中的老街，枕河而眠的原始水乡',
         tag: '水乡',
+        type: 'attraction' as const,
         keywords: [],
         reviews: [],
         unlocked: true,
@@ -86,6 +92,7 @@ export const destinations: Destination[] = [
         name: '西栅',
         description: '灯火阑珊的夜色里，石桥倒影如画',
         tag: '夜景',
+        type: 'attraction' as const,
         keywords: [],
         reviews: [],
         unlocked: true,

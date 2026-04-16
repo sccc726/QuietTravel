@@ -205,7 +205,7 @@ export default function MapPage() {
                   ) : displayAttractions.length > 0 ? (
                     <div className="space-y-2">
                       {displayAttractions.map(item => (
-                        <PlaceCard key={item.id} item={item} />
+                        <PlaceCard key={item.id} item={item} destinationId={selected.id} />
                       ))}
                     </div>
                   ) : (
@@ -236,7 +236,7 @@ export default function MapPage() {
                   ) : displayCheckins.length > 0 ? (
                     <div className="space-y-2">
                       {displayCheckins.map(item => (
-                        <PlaceCard key={item.id} item={item} />
+                        <PlaceCard key={item.id} item={item} destinationId={selected.id} />
                       ))}
                     </div>
                   ) : (
@@ -271,9 +271,18 @@ export default function MapPage() {
 }
 
 /** 地点卡片组件 */
-function PlaceCard({ item }: { item: PlaceItem }) {
+function PlaceCard({ item, destinationId }: { item: PlaceItem; destinationId: string }) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    router.push(`/visit/confirm/${destinationId}/${item.id}`);
+  };
+
   return (
-    <div className="px-3 py-2.5 rounded-lg border border-border/40 bg-card/50 hover:bg-accent/30 hover:border-accent-green/15 transition-all duration-300 group cursor-pointer">
+    <div
+      onClick={handleClick}
+      className="px-3 py-2.5 rounded-lg border border-border/40 bg-card/50 hover:bg-accent/30 hover:border-accent-green/15 transition-all duration-300 group cursor-pointer"
+    >
       <div className="flex items-center gap-1.5 mb-1">
         <span
           className="text-[13px] text-foreground/80 group-hover:text-accent-green transition-colors duration-300"
