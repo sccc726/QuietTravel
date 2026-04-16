@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       try {
         const imgClient = new ImageGenerationClient(config, customHeaders);
         const imgResponse = await imgClient.generate({
-          prompt: `Travel landscape photograph of ${destinationName ?? 'travel'}, ${eventText}, natural soft lighting, muted pastel color grading, slightly desaturated, soft focus edges, tranquil and still atmosphere, minimal composition with negative space, modern photography, no people, no vintage effect`,
+          prompt: `Travel landscape photograph of ${destinationName ?? 'travel'}, ${eventText}, natural soft lighting, muted pastel color grading, slightly desaturated, soft focus edges, tranquil and still atmosphere, minimal composition with negative space, modern photography, no visible faces, no vintage effect`,
           size: '1K',
           watermark: false,
         });
