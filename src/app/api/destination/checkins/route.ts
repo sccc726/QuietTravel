@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedCheckins, setCachedCheckins } from '@/lib/destination-cache';
+import { safeParseLLMJsonArray } from '@/lib/utils';
 import type { PlaceItem } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
@@ -105,22 +106,22 @@ export async function POST(request: NextRequest) {
       );
 
       const raw = llmResponse.content.trim();
-      const jsonMatch = raw.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (Array.isArray(parsed)) {
-          checkins = parsed
-            .map((item: Record<string, unknown>, idx: number) => ({
+      const parsed = safeParseLLMJsonArray(raw);
+      if (parsed) {
+        checkins = parsed
+          .map((item: unknown, idx: number) => {
+            const obj = item as Record<string, unknown>;
+            return {
               id: `${destinationId}-checkin-${idx + 1}`,
-              name: String(item.name ?? ''),
-              description: String(item.description ?? ''),
-              tag: item.tag ? String(item.tag) : undefined,
+              name: String(obj.name ?? ''),
+              description: String(obj.description ?? ''),
+              tag: obj.tag ? String(obj.tag) : undefined,
               type: 'checkin' as const,
-              keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
-              reviews: Array.isArray(item.reviews) ? item.reviews.map(String) : [],
-            }))
-            .filter(p => p.name.length > 0 && p.name.length <= 12);
-        }
+              keywords: Array.isArray(obj.keywords) ? obj.keywords.map(String) : [],
+              reviews: Array.isArray(obj.reviews) ? obj.reviews.map(String) : [],
+            };
+          })
+          .filter(p => p.name.length > 0 && p.name.length <= 12);
       }
     } catch (llmErr) {
       console.error('[/api/destination/checkins] LLM 调用失败:', llmErr);
@@ -144,22 +145,22 @@ export async function POST(request: NextRequest) {
           }
         );
         const raw = fallbackRes.content.trim();
-        const jsonMatch = raw.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(parsed)) {
-            checkins = parsed
-              .map((item: Record<string, unknown>, idx: number) => ({
+        const parsed = safeParseLLMJsonArray(raw);
+        if (parsed) {
+          checkins = parsed
+            .map((item: unknown, idx: number) => {
+              const obj = item as Record<string, unknown>;
+              return {
                 id: `${destinationId}-checkin-${idx + 1}`,
-                name: String(item.name ?? ''),
-                description: String(item.description ?? ''),
-                tag: item.tag ? String(item.tag) : undefined,
+                name: String(obj.name ?? ''),
+                description: String(obj.description ?? ''),
+                tag: obj.tag ? String(obj.tag) : undefined,
                 type: 'checkin' as const,
-                keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
-                reviews: Array.isArray(item.reviews) ? item.reviews.map(String) : [],
-              }))
-              .filter(p => p.name.length > 0 && p.name.length <= 12);
-          }
+                keywords: Array.isArray(obj.keywords) ? obj.keywords.map(String) : [],
+                reviews: Array.isArray(obj.reviews) ? obj.reviews.map(String) : [],
+              };
+            })
+            .filter(p => p.name.length > 0 && p.name.length <= 12);
         }
       } catch (fallbackErr) {
         console.error('[/api/destination/checkins] 降级 LLM 也失败:', fallbackErr);
