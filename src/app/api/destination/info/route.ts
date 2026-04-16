@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedInfo, setCachedInfo } from '@/lib/destination-cache';
-import { destinations } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
   try {
-    const { destinationId } = await request.json();
+    const { destinationId, destinationName } = await request.json();
 
     if (!destinationId || typeof destinationId !== 'string') {
       return NextResponse.json({ error: '请提供目的地 ID' }, { status: 400 });
     }
 
-    const dest = destinations.find(d => d.id === destinationId);
-    if (!dest) {
-      return NextResponse.json({ error: '目的地不存在' }, { status: 404 });
+    if (!destinationName || typeof destinationName !== 'string') {
+      return NextResponse.json({ error: '请提供目的地名称' }, { status: 400 });
     }
 
     // 1. 先查缓存，命中则直接返回
@@ -29,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // 搜索目的地关键词和评价
     const searchResponse = await searchClient.webSearch(
-      `${dest.name} 旅游 关键词 特点 游客评价`,
+      `${destinationName} 旅游 关键词 特点 游客评价`,
       5,
       true // 需要 AI 摘要
     );
@@ -43,7 +41,7 @@ export async function POST(request: NextRequest) {
       for (const item of searchResponse.web_items) {
         // 从 snippet 中提取关键词
         if (item.snippet) {
-          const snippetKeywords = extractKeywords(item.snippet, dest.name);
+          const snippetKeywords = extractKeywords(item.snippet, destinationName);
           for (const kw of snippetKeywords) {
             if (!seenKeywords.has(kw)) {
               seenKeywords.add(kw);
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 使用 AI 摘要作为 summary
-    const summary = searchResponse.summary ?? dest.description;
+    const summary = searchResponse.summary ?? `${destinationName}旅游目的地`;
 
     // 限制关键词数量
     const info = {
@@ -84,7 +82,6 @@ export async function POST(request: NextRequest) {
  * 提取 2-4 字的常见旅游相关词汇
  */
 function extractKeywords(text: string, destName: string): string[] {
-  // 旅游相关关键词模式
   const patterns = [
     /[古今][镇城村]/g,
     /[东西南北][栅庄街巷]/g,

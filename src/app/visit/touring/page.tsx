@@ -24,6 +24,7 @@ function TouringContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const destinationId = searchParams.get('destinationId') ?? '';
+  const destinationName = searchParams.get('name') ?? '';
   const placeId = searchParams.get('placeId') ?? '';
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
 
@@ -56,6 +57,7 @@ function TouringContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           destinationId,
+          destinationName,
           placeId,
           previousEvents: eventsRef.current,
         }),
@@ -67,7 +69,7 @@ function TouringContent() {
     } catch {
       setCurrentEvent('你沿着小路慢慢走着，光影从树叶间洒落，风里带着淡淡的花香。');
     }
-  }, [destinationId, placeId]);
+  }, [destinationId, destinationName, placeId]);
 
   /** 开始一段新的等待计时 */
   const startWaiting = useCallback(() => {

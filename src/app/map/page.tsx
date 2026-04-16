@@ -2,10 +2,9 @@
 
 import { useState, useCallback, useEffect, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
-import { destinations, type Destination, type PlaceItem } from '@/lib/destinations';
-import { ArrowLeft, MapPin, Camera, Landmark } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
+import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
 
 /** 动态加载地图组件，禁用 SSR */
 const MapInner = dynamic(() => import('./components/map-inner'), {
@@ -22,19 +21,15 @@ const MapInner = dynamic(() => import('./components/map-inner'), {
   ),
 });
 
-/** 从数组中随机取 n 条，排除指定 id */
-function pickRandom<T extends { id: string }>(
-  arr: T[],
-  n: number,
-  excludeIds: Set<string> = new Set()
-): T[] {
-  const pool = arr.filter(item => !excludeIds.has(item.id));
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+/** 从数组中随机取 n 条 */
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, n);
 }
 
 /** sessionStorage 键 */
-const STORAGE_KEY = 'cyber-voyage-map-state';
+const DESTS_STORAGE_KEY = 'cyber-voyage-destinations';
+const MAP_STATE_KEY = 'cyber-voyage-map-state';
 
 /** 需要持久化的地图页面状态 */
 interface MapPageState {
@@ -47,29 +42,40 @@ interface MapPageState {
 }
 
 function saveMapState(state: MapPageState) {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* ignore */
-  }
+  try { sessionStorage.setItem(MAP_STATE_KEY, JSON.stringify(state)); } catch { /* */ }
 }
-
 function loadMapState(): MapPageState | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as MapPageState;
-  } catch {
-    return null;
-  }
+    const raw = sessionStorage.getItem(MAP_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function clearMapState() {
+  try { sessionStorage.removeItem(MAP_STATE_KEY); } catch { /* */ }
 }
 
-function clearMapState() {
+function saveDestinations(dests: Destination[]) {
+  try { sessionStorage.setItem(DESTS_STORAGE_KEY, JSON.stringify(dests)); } catch { /* */ }
+}
+function loadDestinations(): Destination[] {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+    const raw = sessionStorage.getItem(DESTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+/** 验证 API 返回类型 */
+interface ValidateSuggestion { name: string; lat: number; lng: number; brief: string; }
+interface ValidateResult {
+  valid: boolean;
+  scope?: 'too_narrow' | 'too_broad' | 'not_found';
+  hint?: string;
+  name?: string;
+  lat?: number;
+  lng?: number;
+  brief?: string;
+  suggestion?: ValidateSuggestion;
+  suggestions?: ValidateSuggestion[];
 }
 
 function MapPageContent() {
@@ -77,37 +83,47 @@ function MapPageContent() {
   const searchParams = useSearchParams();
   const visitedPlaceId = searchParams.get('visited') ?? '';
 
+  // === 目的地列表 ===
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [destinationsLoaded, setDestinationsLoaded] = useState(false);
+
+  // === 选中目的地 ===
   const [selected, setSelected] = useState<Destination | null>(null);
   const [aiDescription, setAiDescription] = useState('');
   const [descriptionLoading, setDescriptionLoading] = useState(false);
 
-  // 全量数据（从 API 获取）
+  // === 全量景点/打卡地数据 ===
   const [allAttractions, setAllAttractions] = useState<PlaceItem[]>([]);
   const [allCheckins, setAllCheckins] = useState<PlaceItem[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
-
-  // 记录当前数据对应的目的地 ID，用于判断是否需要重新请求
   const [loadedForId, setLoadedForId] = useState<string | null>(null);
 
-  // 当前展示的3条（改为 useState 以支持持久化和精确替换）
+  // === 展示列表 ===
   const [displayAttractions, setDisplayAttractions] = useState<PlaceItem[]>([]);
   const [displayCheckins, setDisplayCheckins] = useState<PlaceItem[]>([]);
 
-  /** 根据 id 列表从全量数据中提取条目 */
-  const getByIds = useCallback(
-    (ids: string[], pool: PlaceItem[]): PlaceItem[] => {
-      const map = new Map(pool.map(p => [p.id, p]));
-      return ids.map(id => map.get(id)).filter((p): p is PlaceItem => !!p);
-    },
-    []
-  );
+  // === 搜索相关 ===
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [validateResult, setValidateResult] = useState<ValidateResult | null>(null);
 
-  // 初始化：尝试从 sessionStorage 恢复状态
+  // === 初始化：从 sessionStorage 恢复 ===
   useEffect(() => {
+    const savedDests = loadDestinations();
+    if (savedDests.length > 0) {
+      setDestinations(savedDests);
+    }
+    setDestinationsLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 恢复地图状态
+  useEffect(() => {
+    if (!destinationsLoaded) return;
+
     const saved = loadMapState();
     if (!saved) return;
 
-    // 恢复选中目的地
     if (saved.selectedId) {
       const dest = destinations.find(d => d.id === saved.selectedId);
       if (dest) setSelected(dest);
@@ -118,16 +134,21 @@ function MapPageContent() {
     setAllCheckins(saved.allCheckins);
     setLoadedForId(saved.selectedId);
 
-    // 从全量数据中恢复展示列表
-    const restoredAttrs = getByIds(saved.displayAttractionIds, saved.allAttractions);
-    const restoredCheckins = getByIds(saved.displayCheckinIds, saved.allCheckins);
+    // 从全量数据恢复展示列表
+    const restoreDisplay = (ids: string[], pool: PlaceItem[]): PlaceItem[] => {
+      const map = new Map(pool.map(p => [p.id, p]));
+      return ids.map(id => map.get(id)).filter((p): p is PlaceItem => !!p);
+    };
 
-    // 如果有 visitedPlaceId，替换对应的展示条目
+    let restoredAttrs = restoreDisplay(saved.displayAttractionIds, saved.allAttractions);
+    let restoredCheckins = restoreDisplay(saved.displayCheckinIds, saved.allCheckins);
+
+    // 如果有 visited 参数，替换已游览地点
     if (visitedPlaceId) {
       const isCheckin = visitedPlaceId.includes('-checkin-');
       const currentDisplay = isCheckin ? restoredCheckins : restoredAttrs;
-
       const visitedIdx = currentDisplay.findIndex(p => p.id === visitedPlaceId);
+
       if (visitedIdx !== -1) {
         const currentIds = new Set(currentDisplay.map(p => p.id));
         const pool = isCheckin ? saved.allCheckins : saved.allAttractions;
@@ -137,38 +158,28 @@ function MapPageContent() {
           const replacement = candidates[Math.floor(Math.random() * candidates.length)];
           const newDisplay = [...currentDisplay];
           newDisplay[visitedIdx] = replacement;
-
-          if (isCheckin) {
-            setDisplayCheckins(newDisplay);
-            setDisplayAttractions(restoredAttrs);
-          } else {
-            setDisplayAttractions(newDisplay);
-            setDisplayCheckins(restoredCheckins);
-          }
-        } else {
-          // 没有候选项可替换，保持原样
-          setDisplayAttractions(restoredAttrs);
-          setDisplayCheckins(restoredCheckins);
+          if (isCheckin) restoredCheckins = newDisplay;
+          else restoredAttrs = newDisplay;
         }
-      } else {
-        setDisplayAttractions(restoredAttrs);
-        setDisplayCheckins(restoredCheckins);
       }
-    } else {
-      setDisplayAttractions(restoredAttrs);
-      setDisplayCheckins(restoredCheckins);
     }
 
-    // 恢复后清除，避免下次进入误恢复
+    setDisplayAttractions(restoredAttrs);
+    setDisplayCheckins(restoredCheckins);
     clearMapState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visitedPlaceId]);
+  }, [destinationsLoaded, visitedPlaceId]);
 
-  // 选中目的地时：获取 AI 描述 + 景点 + 打卡地
+  // 持久化目的地列表
   useEffect(() => {
-    if (!selected) return;
-    // 如果已有该目的地的数据（从 sessionStorage 恢复或之前加载的），跳过
-    if (loadedForId === selected.id) return;
+    if (destinationsLoaded && destinations.length > 0) {
+      saveDestinations(destinations);
+    }
+  }, [destinations, destinationsLoaded]);
+
+  // === 选中目的地时加载 API 数据 ===
+  useEffect(() => {
+    if (!selected || loadedForId === selected.id) return;
 
     let cancelled = false;
 
@@ -180,17 +191,17 @@ function MapPageContent() {
         fetch('/api/destination/description', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationId: dest.id }),
+          body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
         }),
         fetch('/api/destination/attractions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationId: dest.id }),
+          body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
         }),
         fetch('/api/destination/checkins', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinationId: dest.id }),
+          body: JSON.stringify({ destinationId: dest.id, destinationName: dest.name }),
         }),
       ]);
 
@@ -199,29 +210,26 @@ function MapPageContent() {
       let newAttractions: PlaceItem[] = [];
       let newCheckins: PlaceItem[] = [];
 
-      // 处理描述
       if (descRes.status === 'fulfilled') {
         try {
           const data = await descRes.value.json();
           if (data.description) setAiDescription(data.description);
-        } catch { /* ignore */ }
+        } catch { /* */ }
       }
       setDescriptionLoading(false);
 
-      // 处理景点
       if (attrRes.status === 'fulfilled') {
         try {
           const data = await attrRes.value.json();
           if (data.data?.attractions) newAttractions = data.data.attractions;
-        } catch { /* ignore */ }
+        } catch { /* */ }
       }
 
-      // 处理打卡地
       if (checkinRes.status === 'fulfilled') {
         try {
           const data = await checkinRes.value.json();
           if (data.data?.checkins) newCheckins = data.data.checkins;
-        } catch { /* ignore */ }
+        } catch { /* */ }
       }
 
       setAllAttractions(newAttractions);
@@ -233,51 +241,98 @@ function MapPageContent() {
     }
 
     loadDestination(selected);
+    return () => { cancelled = true; };
+  }, [selected?.id, loadedForId]);
 
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id]);
+  // === 搜索目的地 ===
+  const handleSearch = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!query || searchLoading) return;
 
-  const handleDestinationClick = useCallback((dest: Destination) => {
-    setSelected(prev => (prev?.id === dest.id ? null : dest));
-  }, []);
+    setSearchLoading(true);
+    setValidateResult(null);
 
-  /** 刷新：重新随机挑选 */
-  const handleRefresh = useCallback(() => {
-    const attrIds = new Set(displayAttractions.map(p => p.id));
-    const checkinIds = new Set(displayCheckins.map(p => p.id));
-    setDisplayAttractions(pickRandom(allAttractions, 3));
-    setDisplayCheckins(pickRandom(allCheckins, 3));
-    // 上面故意没用 excludeIds，换一批就是完全重新随机
-    void attrIds;
-    void checkinIds;
-  }, [allAttractions, allCheckins, displayAttractions, displayCheckins]);
+    try {
+      const res = await fetch('/api/destination/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      const result: ValidateResult = await res.json();
+      setValidateResult(result);
+    } catch {
+      setValidateResult({ valid: false, scope: 'not_found', hint: '验证失败，请重试' });
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [searchQuery, searchLoading]);
 
-  /** 离开页面前保存状态 */
-  const saveStateBeforeLeave = useCallback(() => {
-    if (!selected) return;
-    saveMapState({
-      selectedId: selected.id,
-      aiDescription,
-      allAttractions,
-      allCheckins,
-      displayAttractionIds: displayAttractions.map(p => p.id),
-      displayCheckinIds: displayCheckins.map(p => p.id),
-    });
-  }, [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins]);
+  // === 确认并添加目的地 ===
+  const confirmDestination = useCallback(
+    (name: string, lat: number, lng: number) => {
+      const id = destinationSlug(name);
 
-  /** 点击地点卡片 — 先保存状态再跳转 */
-  const handlePlaceClick = useCallback(
-    (placeId: string, destinationId: string) => {
-      saveStateBeforeLeave();
-      router.push(`/visit/confirm/${destinationId}/${placeId}`);
+      // 检查是否已存在
+      if (destinations.some(d => d.id === id)) {
+        // 已存在，直接选中
+        const existing = destinations.find(d => d.id === id);
+        if (existing) setSelected(existing);
+        setValidateResult(null);
+        setSearchQuery('');
+        return;
+      }
+
+      const newDest: Destination = {
+        id,
+        name,
+        description: '',
+        coordinates: { lat, lng },
+        spots: [],
+      };
+
+      setDestinations(prev => [...prev, newDest]);
+      setSelected(newDest);
+      setValidateResult(null);
+      setSearchQuery('');
     },
-    [saveStateBeforeLeave, router]
+    [destinations]
   );
 
-  /** 返回首页 */
+  // === 点击地图上的目的地光点 ===
+  const handleDestinationClick = useCallback(
+    (dest: Destination) => {
+      setSelected(prev => (prev?.id === dest.id ? null : dest));
+    },
+    []
+  );
+
+  // === 换一批 ===
+  const handleRefresh = useCallback(() => {
+    setDisplayAttractions(pickRandom(allAttractions, 3));
+    setDisplayCheckins(pickRandom(allCheckins, 3));
+  }, [allAttractions, allCheckins]);
+
+  // === 保存状态并跳转 ===
+  const handlePlaceClick = useCallback(
+    (placeId: string, destinationId: string, destinationName: string) => {
+      // 保存当前状态
+      if (selected) {
+        saveMapState({
+          selectedId: selected.id,
+          aiDescription,
+          allAttractions,
+          allCheckins,
+          displayAttractionIds: displayAttractions.map(p => p.id),
+          displayCheckinIds: displayCheckins.map(p => p.id),
+        });
+      }
+      const nameParam = destinationName ? `?name=${encodeURIComponent(destinationName)}` : '';
+      router.push(`/visit/confirm/${destinationId}/${placeId}${nameParam}`);
+    },
+    [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins, router]
+  );
+
+  // === 返回首页 ===
   const handleBack = useCallback(() => {
     clearMapState();
     router.push('/');
@@ -311,7 +366,65 @@ function MapPageContent() {
           onDestinationClick={handleDestinationClick}
         />
 
-        {/* 底部面板 */}
+        {/* 搜索框 — 地图上方浮动 */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-[340px] animate-fade-in-up">
+          <div className="relative flex items-center bg-background/90 backdrop-blur-sm border border-border/40 rounded-lg shadow-sm">
+            <Search className="w-4 h-4 text-muted-foreground/40 ml-3 shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+              placeholder="你想去哪里？"
+              className="flex-1 h-10 px-3 bg-transparent text-sm text-foreground/80 placeholder:text-muted-foreground/35 focus:outline-none"
+              style={{ fontFamily: 'var(--font-sans)' }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); setValidateResult(null); }}
+                className="mr-1 p-1 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={handleSearch}
+              disabled={searchLoading || !searchQuery.trim()}
+              className="mr-2 px-3 h-7 text-xs text-accent-green bg-accent-green/8 border border-accent-green/15 rounded-md hover:bg-accent-green/15 transition-all duration-300 disabled:opacity-30"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              {searchLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '搜索'}
+            </button>
+          </div>
+
+          {/* 验证结果提示 */}
+          {validateResult && (
+            <ValidateResultCard
+              result={validateResult}
+              onConfirm={confirmDestination}
+              onDismiss={() => setValidateResult(null)}
+            />
+          )}
+        </div>
+
+        {/* 无目的地时的中央提示 */}
+        {destinations.length === 0 && !validateResult && !searchLoading && (
+          <div className="absolute inset-0 flex items-center justify-center z-[5] pointer-events-none">
+            <div className="text-center animate-fade-in-up">
+              <p
+                className="text-sm text-muted-foreground/25 tracking-[0.15em] mb-1"
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                在上方搜索你想去的地方
+              </p>
+              <p className="text-[11px] text-muted-foreground/15 tracking-wider">
+                国内目的地均可探索
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 底部面板：选中目的地的景点/打卡地 */}
         {selected && (
           <div className="absolute bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border/40 z-10 animate-fade-in-up">
             <div className="max-w-2xl mx-auto px-6 py-4">
@@ -329,7 +442,7 @@ function MapPageContent() {
                 {descriptionLoading ? (
                   <span className="inline-block w-12 h-px bg-muted-foreground/20 animate-pulse" />
                 ) : (
-                  aiDescription || selected.description
+                  aiDescription
                 )}
               </p>
 
@@ -349,10 +462,7 @@ function MapPageContent() {
                   {placesLoading ? (
                     <div className="space-y-2">
                       {[1, 2, 3].map(i => (
-                        <div
-                          key={i}
-                          className="h-14 rounded-lg bg-muted/30 animate-pulse"
-                        />
+                        <div key={i} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
                       ))}
                     </div>
                   ) : displayAttractions.length > 0 ? (
@@ -362,6 +472,7 @@ function MapPageContent() {
                           key={item.id}
                           item={item}
                           destinationId={selected.id}
+                          destinationName={selected.name}
                           onClick={handlePlaceClick}
                         />
                       ))}
@@ -385,10 +496,7 @@ function MapPageContent() {
                   {placesLoading ? (
                     <div className="space-y-2">
                       {[1, 2, 3].map(i => (
-                        <div
-                          key={i}
-                          className="h-14 rounded-lg bg-muted/30 animate-pulse"
-                        />
+                        <div key={i} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
                       ))}
                     </div>
                   ) : displayCheckins.length > 0 ? (
@@ -398,6 +506,7 @@ function MapPageContent() {
                           key={item.id}
                           item={item}
                           destinationId={selected.id}
+                          destinationName={selected.name}
                           onClick={handlePlaceClick}
                         />
                       ))}
@@ -410,14 +519,14 @@ function MapPageContent() {
 
               {/* 底部操作 */}
               <div className="flex items-center justify-center gap-4 mt-4">
-                {allAttractions.length > 3 || allCheckins.length > 3 ? (
+                {(allAttractions.length > 3 || allCheckins.length > 3) && (
                   <button
                     onClick={handleRefresh}
                     className="text-[11px] text-muted-foreground/35 hover:text-accent-green/70 transition-colors duration-300 tracking-wider"
                   >
                     换一批
                   </button>
-                ) : null}
+                )}
                 <button
                   onClick={() => setSelected(null)}
                   className="text-[11px] text-muted-foreground/35 hover:text-muted-foreground/60 transition-colors duration-300 tracking-wider"
@@ -433,18 +542,156 @@ function MapPageContent() {
   );
 }
 
+/** 验证结果卡片 */
+function ValidateResultCard({
+  result,
+  onConfirm,
+  onDismiss,
+}: {
+  result: ValidateResult;
+  onConfirm: (name: string, lat: number, lng: number) => void;
+  onDismiss: () => void;
+}) {
+  if (result.valid && result.name && result.lat && result.lng) {
+    return (
+      <div className="mt-2 p-3 bg-background/95 backdrop-blur-sm border border-accent-green/20 rounded-lg animate-fade-in-up">
+        <p
+          className="text-sm text-foreground/75 mb-2"
+          style={{ fontFamily: 'var(--font-serif)' }}
+        >
+          发现目的地：{result.name}
+          {result.brief && (
+            <span className="text-muted-foreground/40 ml-1">· {result.brief}</span>
+          )}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onConfirm(result.name!, result.lat!, result.lng!)}
+            className="px-3 py-1.5 text-xs text-accent-green bg-accent-green/10 border border-accent-green/20 rounded-md hover:bg-accent-green/18 transition-all"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            出发去这里
+          </button>
+          <button
+            onClick={onDismiss}
+            className="px-3 py-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.scope === 'too_narrow' && result.suggestion) {
+    const s = result.suggestion;
+    return (
+      <div className="mt-2 p-3 bg-background/95 backdrop-blur-sm border border-orange-400/20 rounded-lg animate-fade-in-up">
+        <p
+          className="text-sm text-foreground/70 mb-2"
+          style={{ fontFamily: 'var(--font-serif)' }}
+        >
+          {result.hint}
+        </p>
+        <p
+          className="text-xs text-muted-foreground/50 mb-2"
+          style={{ fontFamily: 'var(--font-serif)' }}
+        >
+          要不要探索
+          <span className="text-accent-green mx-1">{s.name}</span>
+          ？
+          {s.brief && <span className="text-muted-foreground/30 ml-1">{s.brief}</span>}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onConfirm(s.name, s.lat, s.lng)}
+            className="px-3 py-1.5 text-xs text-accent-green bg-accent-green/10 border border-accent-green/20 rounded-md hover:bg-accent-green/18 transition-all"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            去{s.name}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="px-3 py-1.5 text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+          >
+            再想想
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.scope === 'too_broad' && result.suggestions) {
+    return (
+      <div className="mt-2 p-3 bg-background/95 backdrop-blur-sm border border-border/30 rounded-lg animate-fade-in-up">
+        <p
+          className="text-sm text-foreground/70 mb-3"
+          style={{ fontFamily: 'var(--font-serif)' }}
+        >
+          {result.hint}
+        </p>
+        <div className="space-y-2 mb-3">
+          {result.suggestions.map(s => (
+            <button
+              key={s.name}
+              onClick={() => onConfirm(s.name, s.lat, s.lng)}
+              className="w-full text-left px-3 py-2 rounded-md border border-border/30 hover:border-accent-green/20 hover:bg-accent-green/5 transition-all"
+            >
+              <span
+                className="text-sm text-foreground/75"
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                {s.name}
+              </span>
+              {s.brief && (
+                <span className="text-[11px] text-muted-foreground/35 ml-2">{s.brief}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+        >
+          再想想
+        </button>
+      </div>
+    );
+  }
+
+  // not_found 或其他
+  return (
+    <div className="mt-2 p-3 bg-background/95 backdrop-blur-sm border border-border/30 rounded-lg animate-fade-in-up">
+      <p
+        className="text-sm text-muted-foreground/60"
+        style={{ fontFamily: 'var(--font-serif)' }}
+      >
+        {result.hint || '未找到该目的地'}
+      </p>
+      <button
+        onClick={onDismiss}
+        className="mt-2 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+      >
+        重新搜索
+      </button>
+    </div>
+  );
+}
+
 /** 地点卡片组件 */
 function PlaceCard({
   item,
   destinationId,
+  destinationName,
   onClick,
 }: {
   item: PlaceItem;
   destinationId: string;
-  onClick: (placeId: string, destinationId: string) => void;
+  destinationName: string;
+  onClick: (placeId: string, destinationId: string, destinationName: string) => void;
 }) {
   const handleClick = () => {
-    onClick(item.id, destinationId);
+    onClick(item.id, destinationId, destinationName);
   };
 
   return (
@@ -465,9 +712,7 @@ function PlaceCard({
           </span>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground/45 leading-relaxed">
-        {item.description}
-      </p>
+      <p className="text-[11px] text-muted-foreground/45 leading-relaxed">{item.description}</p>
     </div>
   );
 }

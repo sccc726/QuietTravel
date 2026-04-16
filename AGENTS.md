@@ -20,14 +20,15 @@
 │   ├── app/
 │   │   ├── page.tsx                       # 角色创建页（仅角色名）
 │   │   ├── map/
-│   │   │   ├── page.tsx                   # 目的地选择页（双栏景点/打卡地）
-│   │   │   └── components/map-inner.tsx   # Leaflet 地图组件（SSR disabled）
+│   │   │   ├── page.tsx                   # 目的地选择页（搜索+地图+双栏景点/打卡地）
+│   │   │   └── components/map-inner.tsx   # Leaflet 地图组件（SSR disabled，动态标记）
 │   │   ├── visit/
 │   │   │   ├── confirm/[destinationId]/[placeId]/page.tsx  # 游览确认页
 │   │   │   └── touring/page.tsx           # 游览中页面（定时事件+随意逛逛）
 │   │   ├── api/
 │   │   │   ├── greeting/route.ts          # AI 问候语
 │   │   │   ├── destination/
+│   │   │   │   ├── validate/route.ts      # AI 校准目的地尺度（web-search+LLM）
 │   │   │   │   ├── info/route.ts          # web-search 获取目的地关键词
 │   │   │   │   ├── description/route.ts   # AI 生成目的地描述（~20字）
 │   │   │   │   ├── attractions/route.ts   # AI 搜索景点列表
@@ -47,10 +48,27 @@
 
 ## 核心数据流
 
-1. **角色创建** → AI 生成问候语（打字机效果）→ 选择目的地
-2. **目的地选择** → 地图点击 → 并行获取 description/attractions/checkins → 双栏展示随机3条
-3. **点选地点** → 确认页（随机事件数：景点2~3/打卡地1~2）→ 确认出发
-4. **游览中** → 定时 AI 随机事件（20-60min 间隔）→ 随意逛逛按钮（80%后浮现）→ 跳转时间测试按钮
+1. **角色创建** → AI 生成问候语（打字机效果）→ 进入地图页
+2. **搜索目的地** → AI 校准尺度（valid/too_narrow/too_broad/not_found）→ 创建运行时目的地 → 地图飞到坐标
+3. **目的地选择** → 地图光点点击或搜索 → 并行获取 description/attractions/checkins → 双栏展示随机3条
+4. **点选地点** → 确认页（随机事件数：景点2~3/打卡地1~2）→ 确认出发
+5. **游览中** → 定时 AI 随机事件（20-60min 间隔）→ 随意逛逛按钮（80%后浮现）→ 跳转时间测试按钮
+6. **游览返回** → 恢复地图状态（sessionStorage）→ 已游览地点替换为新地点
+
+## 目的地管理
+
+- `destinations.ts` 预设列表为空，所有目的地由搜索动态创建
+- 运行时目的地列表存于页面 state + sessionStorage 持久化
+- `destinationSlug(name)` 生成 URL 安全的 ID
+- API 路由通过请求体接收 `destinationName`，不依赖静态列表
+
+## 校准逻辑（/api/destination/validate）
+
+- 合适尺度 = 该范围内有约 7-10 个值得去的景点和打卡地
+- too_narrow（夫子庙→南京）：建议扩大到上级区域
+- too_broad（江苏省→苏州/南京/扬州）：建议缩小到具体城市
+- not_found（巴黎/霍格沃茨）：境外或虚构地点
+- 所有目的地限定中国境内（坐标 18°-54°N, 73°-135°E）
 
 ## 缓存机制
 
@@ -90,12 +108,19 @@
 - divIcon 需覆盖默认样式：`.leaflet-div-icon { background: transparent!important; border: none!important; }`
 - 默认图标路径需手动修复：`delete (L.Icon.Default.prototype as any)._getIconUrl`
 - 地图初始化后必须调用 `map.invalidateSize()`
+- 标记动态管理：通过 useEffect 对比 destinations 数组增删 marker
 
 ### PlaceItem ID 规范
 
 - 景点: `${destinationId}-attr-${idx}`
 - 打卡地: `${destinationId}-checkin-${idx}`
 - 通过 `placeId.includes('-checkin-')` 区分类型
+
+### sessionStorage 持久化
+
+- `cyber-voyage-destinations` — 运行时目的地列表
+- `cyber-voyage-map-state` — 地图页面状态（选中目的地、展示列表等）
+- 离开地图页前保存，返回时恢复后清除
 
 ## 常用命令
 

@@ -1,6 +1,7 @@
 /**
  * 赛博旅途 - 目的地与景点数据结构
  *
+ * destinations 列表在运行时通过搜索动态创建，初始为空。
  * coordinates: 真实经纬度
  * keywords / reviews: 由 web-search 获取并缓存，只请求一次
  * unlocked / cost: 预留字段，支持后续扩展挂机/经营逻辑
@@ -27,9 +28,6 @@ export interface PlaceItem {
   cost?: number;
 }
 
-/** 向后兼容旧 Spot 类型 */
-export type Spot = PlaceItem;
-
 export interface Destination {
   id: string;
   name: string;
@@ -38,7 +36,7 @@ export interface Destination {
   /** 真实经纬度坐标 */
   coordinates: { lat: number; lng: number };
   /** 旗下的景点列表（静态数据，仅作降级） */
-  spots: Spot[];
+  spots: PlaceItem[];
   /** 是否已解锁，预留字段 */
   unlocked?: boolean;
   /** 解锁消耗，预留字段 */
@@ -68,35 +66,18 @@ export interface DestinationCheckins {
   checkins: PlaceItem[];
 }
 
-/** 全部目的地数据 — 后续在此数组中追加即可扩展 */
-export const destinations: Destination[] = [
-  {
-    id: 'wuzhen',
-    name: '乌镇',
-    description: '枕水人家，千年古镇，江南水乡的温柔时光',
-    coordinates: { lat: 30.7489, lng: 120.4855 },
-    unlocked: true,
-    spots: [
-      {
-        id: 'dongzha',
-        name: '东栅',
-        description: '清晨薄雾中的老街，枕河而眠的原始水乡',
-        tag: '水乡',
-        type: 'attraction' as const,
-        keywords: [],
-        reviews: [],
-        unlocked: true,
-      },
-      {
-        id: 'xizha',
-        name: '西栅',
-        description: '灯火阑珊的夜色里，石桥倒影如画',
-        tag: '夜景',
-        type: 'attraction' as const,
-        keywords: [],
-        reviews: [],
-        unlocked: true,
-      },
-    ],
-  },
-];
+/**
+ * 中文地名 → slug ID 的简易转换
+ * 用于生成可读且 URL 安全的目的地 ID
+ */
+export function destinationSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    // 保留中文、字母、数字、连字符
+    .replace(/[^\u4e00-\u9fff\w-]/g, '');
+}
+
+/** 预设目的地列表 — 初始为空，目的地由搜索动态创建 */
+export const destinations: Destination[] = [];

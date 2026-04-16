@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedCheckins, setCachedCheckins } from '@/lib/destination-cache';
-import { destinations } from '@/lib/destinations';
 import type { PlaceItem } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
   let destinationId = '';
+  let destinationName = '';
   try {
     const body = await request.json();
     destinationId = body.destinationId ?? '';
+    destinationName = body.destinationName ?? '';
 
     if (!destinationId) {
       return NextResponse.json({ error: '请提供目的地 ID' }, { status: 400 });
     }
 
-    const dest = destinations.find(d => d.id === destinationId);
-    if (!dest) {
-      return NextResponse.json({ error: '目的地不存在' }, { status: 404 });
+    if (!destinationName) {
+      return NextResponse.json({ error: '请提供目的地名称' }, { status: 400 });
     }
 
     // 1. 先查缓存
@@ -32,17 +32,17 @@ export async function POST(request: NextRequest) {
 
     const [res1, res2, res3] = await Promise.allSettled([
       searchClient.webSearch(
-        `${dest.name} 特色餐厅 美食推荐 地址`,
+        `${destinationName} 特色餐厅 美食推荐 地址`,
         8,
         true
       ),
       searchClient.webSearch(
-        `${dest.name} 咖啡厅 酒吧 茶馆 地址`,
+        `${destinationName} 咖啡厅 酒吧 茶馆 地址`,
         8,
         true
       ),
       searchClient.webSearch(
-        `${dest.name} 网红出片 拍照 打卡 地址 店名`,
+        `${destinationName} 网红出片 拍照 打卡 地址 店名`,
         8,
         true
       ),
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         },
         {
           role: 'user' as const,
-          content: `目的地：${dest.name}\n\n搜索结果：\n${searchContext}`,
+          content: `目的地：${destinationName}\n\n搜索结果：\n${searchContext}`,
         },
       ],
       {
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
           [
             {
               role: 'system' as const,
-              content: `你是一个旅游数据专家。请根据你对${dest.name}的了解，列出该地的知名打卡地（餐厅、酒吧、咖啡厅、茶馆、网红出片点等）。
+              content: `你是一个旅游数据专家。请根据你对${destinationName}的了解，列出该地的知名打卡地（餐厅、酒吧、咖啡厅、茶馆、网红出片点等）。
 
 返回严格的 JSON 数组，每个元素包含：
 - name: 打卡地具体名称，2-8字（string）
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
             },
             {
               role: 'user' as const,
-              content: `请列出${dest.name}的知名打卡地。`,
+              content: `请列出${destinationName}的知名打卡地。`,
             },
           ],
           {

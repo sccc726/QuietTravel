@@ -56,6 +56,7 @@ export default function MapInner({
     onClickRef.current = onDestinationClick;
   }, [onDestinationClick]);
 
+  // 初始化地图（只执行一次）
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -76,26 +77,6 @@ export default function MapInner({
       }
     ).addTo(map);
 
-    // 首次添加所有目的地标记
-    for (const dest of destinations) {
-      const marker = L.marker([dest.coordinates.lat, dest.coordinates.lng], {
-        icon: createMarkerIcon(false),
-      })
-        .addTo(map)
-        .on('click', () => {
-          onClickRef.current(dest);
-        });
-
-      marker.bindTooltip(dest.name, {
-        direction: 'top',
-        offset: [0, -18],
-        className: 'destination-tooltip',
-        permanent: false,
-      });
-
-      markersRef.current.set(dest.id, marker);
-    }
-
     // 确保容器尺寸正确
     map.invalidateSize();
 
@@ -106,6 +87,48 @@ export default function MapInner({
       mapRef.current = null;
       markersRef.current.clear();
     };
+  }, []);
+
+  // 动态同步标记：根据 destinations 数组增删 marker
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentIds = new Set(markersRef.current.keys());
+    const newIds = new Set(destinations.map(d => d.id));
+
+    // 移除不再存在的标记
+    for (const id of currentIds) {
+      if (!newIds.has(id)) {
+        const marker = markersRef.current.get(id);
+        if (marker) {
+          marker.remove();
+          markersRef.current.delete(id);
+        }
+      }
+    }
+
+    // 添加新标记
+    for (const dest of destinations) {
+      if (!currentIds.has(dest.id)) {
+        const marker = L.marker([dest.coordinates.lat, dest.coordinates.lng], {
+          icon: createMarkerIcon(false),
+        })
+          .addTo(map)
+          .on('click', () => {
+            onClickRef.current(dest);
+          });
+
+        marker.bindTooltip(dest.name, {
+          direction: 'top',
+          offset: [0, -18],
+          className: 'destination-tooltip',
+          permanent: false,
+        });
+
+        markersRef.current.set(dest.id, marker);
+      }
+    }
   }, [destinations]);
 
   // 选中态更新 — 只切换图标

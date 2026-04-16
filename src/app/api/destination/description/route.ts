@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedInfo } from '@/lib/destination-cache';
-import { destinations } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
   let destinationId = '';
+  let destinationName = '';
 
   try {
     const body = await request.json();
     destinationId = body.destinationId ?? '';
+    destinationName = body.destinationName ?? '';
 
     if (!destinationId) {
       return NextResponse.json({ error: '请提供目的地 ID' }, { status: 400 });
     }
 
-    const dest = destinations.find(d => d.id === destinationId);
-    if (!dest) {
-      return NextResponse.json({ error: '目的地不存在' }, { status: 404 });
+    // 如果没传 destinationName，从缓存信息中尝试获取
+    if (!destinationName) {
+      const cachedInfo = getCachedInfo(destinationId);
+      if (cachedInfo) {
+        destinationName = cachedInfo.summary ? destinationId : '';
+      }
     }
 
     // 从缓存获取关键词信息
     const cachedInfo = getCachedInfo(destinationId);
 
-    // 构建上下文：有缓存则用关键词，没有则用静态描述
-    const contextParts: string[] = [`目的地名称：${dest.name}`];
+    // 构建上下文：有缓存则用关键词，没有则用名称
+    const contextParts: string[] = [];
+    if (destinationName) {
+      contextParts.push(`目的地名称：${destinationName}`);
+    }
 
     if (cachedInfo) {
       if (cachedInfo.keywords.length > 0) {
@@ -32,8 +39,10 @@ export async function POST(request: NextRequest) {
       if (cachedInfo.summary) {
         contextParts.push(`概况：${cachedInfo.summary}`);
       }
-    } else {
-      contextParts.push(`简介：${dest.description}`);
+    }
+
+    if (contextParts.length === 0) {
+      return NextResponse.json({ description: '一段安静的旅途' });
     }
 
     const contextStr = contextParts.join('\n');
@@ -64,9 +73,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ description: response.content.trim() });
   } catch (error) {
     console.error('[/api/destination/description] 生成描述失败:', error);
-    const dest = destinations.find(d => d.id === destinationId);
     return NextResponse.json({
-      description: dest?.description ?? '一段安静的旅途',
+      description: '一段安静的旅途',
     });
   }
 }

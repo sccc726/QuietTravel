@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedAttractions, getCachedCheckins } from '@/lib/destination-cache';
-import { destinations } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
   try {
-    const { destinationId, placeId, previousEvents } = await request.json();
+    const { destinationId, destinationName, placeId, previousEvents } = await request.json();
 
     if (!destinationId || !placeId) {
       return NextResponse.json({ error: '参数缺失' }, { status: 400 });
-    }
-
-    const dest = destinations.find(d => d.id === destinationId);
-    if (!dest) {
-      return NextResponse.json({ error: '目的地不存在' }, { status: 404 });
     }
 
     // 从缓存中查找当前地点的详细信息
@@ -41,10 +35,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建上下文
-    const contextParts: string[] = [
-      `目的地：${dest.name}`,
-      `当前地点：${placeInfo.name}`,
-    ];
+    const contextParts: string[] = [];
+    if (destinationName) {
+      contextParts.push(`目的地：${destinationName}`);
+    }
+    if (placeInfo.name) {
+      contextParts.push(`当前地点：${placeInfo.name}`);
+    }
     if (placeInfo.description) {
       contextParts.push(`地点简介：${placeInfo.description}`);
     }

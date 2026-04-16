@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedAttractions, setCachedAttractions } from '@/lib/destination-cache';
-import { destinations } from '@/lib/destinations';
 import type { PlaceItem } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
   let destinationId = '';
+  let destinationName = '';
   try {
     const body = await request.json();
     destinationId = body.destinationId ?? '';
+    destinationName = body.destinationName ?? '';
 
     if (!destinationId) {
       return NextResponse.json({ error: '请提供目的地 ID' }, { status: 400 });
     }
 
-    const dest = destinations.find(d => d.id === destinationId);
-    if (!dest) {
-      return NextResponse.json({ error: '目的地不存在' }, { status: 404 });
+    if (!destinationName) {
+      return NextResponse.json({ error: '请提供目的地名称' }, { status: 400 });
     }
 
     // 1. 先查缓存
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const searchClient = new SearchClient(config, customHeaders);
 
     const searchResponse = await searchClient.webSearch(
-      `${dest.name} 必去景点 旅游攻略 推荐`,
+      `${destinationName} 必去景点 旅游攻略 推荐`,
       10,
       true
     );
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         },
         {
           role: 'user' as const,
-          content: `目的地：${dest.name}\n\n搜索结果：\n${searchContext}`,
+          content: `目的地：${destinationName}\n\n搜索结果：\n${searchContext}`,
         },
       ],
       {

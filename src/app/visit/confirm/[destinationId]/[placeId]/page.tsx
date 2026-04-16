@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import type { PlaceType } from '@/lib/destinations';
 
@@ -15,6 +15,8 @@ interface ConfirmPageProps {
 export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   const { destinationId, placeId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const destinationName = searchParams.get('name') ?? '';
 
   // 从 placeId 解析类型
   const placeType: PlaceType = placeId.includes('-checkin-') ? 'checkin' : 'attraction';
@@ -32,9 +34,9 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
   const handleDepart = () => {
     if (eventCount === null) return;
-    // 跳转到游览中页面，携带事件数
+    const nameParam = destinationName ? `&name=${encodeURIComponent(destinationName)}` : '';
     router.push(
-      `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${eventCount}`
+      `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${eventCount}${nameParam}`
     );
   };
 
