@@ -59,8 +59,8 @@ function TouringContent() {
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
   const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
 
-  // 页面模式：'active' | 'completed'
-  const [mode, setMode] = useState<'loading' | 'active' | 'completed'>('loading');
+  // 页面模式：'active' | 'finished' | 'completed'
+  const [mode, setMode] = useState<'loading' | 'active' | 'finished' | 'completed'>('loading');
 
   // 事件状态
   const [events, setEvents] = useState<EventData[]>([]);
@@ -125,7 +125,7 @@ function TouringContent() {
       intervalMs: override?.intervalMs ?? intervalMsRef.current,
       hasImage: override?.hasImage ?? hasImageRef.current,
       totalPlaces: override?.totalPlaces ?? totalPlacesRef.current,
-      completed: override?.completed ?? modeRef.current === 'completed',
+      completed: override?.completed ?? (modeRef.current === 'completed' || modeRef.current === 'finished'),
       events: override?.events ?? eventsRef.current,
       lastSavedAt: Date.now(),
     };
@@ -482,7 +482,7 @@ function TouringContent() {
     }
 
     // 所有事件完成，标记游览结束
-    setMode('completed');
+    setMode('finished');
     saveTouringState({ completed: true, completedEvents: events.length, events });
   }, [events.length, isTyping, isWaiting, mode, totalEvents, fetchNextEvent, startWaiting, saveTouringState]);
 
@@ -642,7 +642,7 @@ function TouringContent() {
           className="text-sm font-light tracking-[0.08em] text-foreground/70"
           style={{ fontFamily: 'var(--font-serif)' }}
         >
-          {mode === 'completed' ? '游记' : '游览中'}
+          {mode === 'completed' ? '游记' : mode === 'finished' ? '游记' : '游览中'}
         </h1>
         <button
           onClick={toggleMute}
@@ -666,6 +666,63 @@ function TouringContent() {
               >
                 {restoringText}
               </p>
+            </div>
+          )}
+
+          {/* ═══ finished 模式：首次游览完成 ═══ */}
+          {mode === 'finished' && (
+            <div className="space-y-8 animate-fade-in-up">
+              {/* 标题 */}
+              <div className="text-center space-y-2">
+                <p
+                  className="text-sm text-accent-green/70 tracking-wider"
+                  style={{ fontFamily: 'var(--font-serif)' }}
+                >
+                  游览结束
+                </p>
+                <p
+                  className="text-xs text-muted-foreground/35 tracking-wider"
+                  style={{ fontFamily: 'var(--font-serif)' }}
+                >
+                  这次的见闻已记录在游记中
+                </p>
+              </div>
+
+              {/* 事件列表 */}
+              {events.length > 0 && (
+                <div className="space-y-3">
+                  {events.map((ev, i) => (
+                    <div key={i} className="space-y-2">
+                      {ev.imageUrl && (
+                        <div className="w-full rounded-lg overflow-hidden opacity-70">
+                          <img
+                            src={ev.imageUrl}
+                            alt=""
+                            className="w-full h-auto object-cover rounded-lg"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+                      <div
+                        className="text-sm text-muted-foreground/55 leading-relaxed pl-4 border-l-2 border-accent-green/20"
+                        style={{ fontFamily: 'var(--font-sans)' }}
+                      >
+                        {ev.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 底部按钮 */}
+              <div className="flex flex-col items-center gap-3 pt-4">
+                <button
+                  onClick={() => goBackToMap()}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-sm tracking-wider hover:bg-accent-green/18 transition-all duration-300"
+                >
+                  返回地图
+                </button>
+              </div>
             </div>
           )}
 
