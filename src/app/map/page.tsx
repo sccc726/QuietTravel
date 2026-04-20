@@ -407,13 +407,20 @@ function MapPageContent() {
         >
           选择目的地
         </h1>
-        <button
-          onClick={() => { clearAuth(); router.replace('/'); }}
-          className="text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors duration-300"
-          style={{ fontFamily: 'var(--font-serif)' }}
-        >
-          退出
-        </button>
+        <div className="flex items-center gap-3">
+          <span
+            className="text-xs text-muted-foreground/50 tracking-wider"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            {getStoredAuth()?.username ?? ''}
+          </span>
+          <button
+            onClick={() => { clearAuth(); router.replace('/'); }}
+            className="text-xs text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors duration-300"
+          >
+            退出
+          </button>
+        </div>
       </header>
 
       {/* 地图区域 */}
