@@ -2,8 +2,14 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, MapPin, AlertTriangle } from 'lucide-react';
 import type { PlaceType } from '@/lib/destinations';
+import { authHeaders } from '@/lib/auth';
+
+interface OngoingTour {
+  placeId: string;
+  placeName: string;
+}
 
 interface ConfirmPageProps {
   params: Promise<{
@@ -18,6 +24,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   const searchParams = useSearchParams();
   const destinationName = searchParams.get('name') ?? '';
   const totalPlaces = searchParams.get('total') ?? '0';
+  const placeName = searchParams.get('placeName') ?? '';
 
   // 从 placeId 解析类型
   const placeType: PlaceType = placeId.includes('-checkin-') ? 'checkin' : 'attraction';
@@ -25,19 +32,38 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
   // 随机事件数：景点 2~3，打卡地 1~2（使用 useState + useEffect 避免 hydration/purity 问题）
   const [eventCount, setEventCount] = useState<number | null>(null);
+  // 同目的地未完成的游览
+  const [ongoingTour, setOngoingTour] = useState<OngoingTour | null>(null);
 
   useEffect(() => {
     const count = placeType === 'attraction'
       ? (Math.random() < 0.5 ? 2 : 3)
       : (Math.random() < 0.5 ? 1 : 2);
     setEventCount(count);
-  }, [placeType]);
+
+    // 检查同目的地是否有未完成的游览
+    fetch('/api/progress', { headers: authHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.progress) return;
+        const destProgress = data.progress[destinationId];
+        if (!destProgress?.touringState) return;
+        const ts = destProgress.touringState;
+        // 只关心未完成的、且不是当前地点的游览
+        if (ts.completed || ts.placeId === placeId) return;
+        // 使用 touringState 中的 placeName，降级到 ID
+        const pName = ts.placeName || ts.placeId;
+        setOngoingTour({ placeId: ts.placeId, placeName: pName });
+      })
+      .catch(() => {});
+  }, [destinationId, placeId, placeType]);
 
   const handleDepart = () => {
     if (eventCount === null) return;
     const nameParam = destinationName ? `&name=${encodeURIComponent(destinationName)}` : '';
+    const placeParam = `&placeName=${encodeURIComponent(placeName)}`;
     router.push(
-      `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${eventCount}&total=${totalPlaces}${nameParam}`
+      `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${eventCount}&total=${totalPlaces}${nameParam}${placeParam}`
     );
   };
 
@@ -78,6 +104,19 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
             <p className="text-sm text-muted-foreground/30">...</p>
           )}
         </div>
+
+        {/* 未完成游览警告 */}
+        {ongoingTour && (
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-lg bg-accent/5 border border-accent/10 text-left">
+            <AlertTriangle className="w-4 h-4 text-accent/70 shrink-0 mt-0.5" />
+            <p
+              className="text-xs text-muted-foreground/55 leading-relaxed"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              你还在「<span className="text-foreground/60">{ongoingTour.placeName}</span>」游览中，前往新地点将覆盖该景点的进度
+            </p>
+          </div>
+        )}
 
         {/* 出发按钮 */}
         <button

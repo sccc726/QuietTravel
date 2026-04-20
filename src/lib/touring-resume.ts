@@ -13,6 +13,7 @@ interface TouringState {
   destinationId: string;
   destinationName: string;
   placeId: string;
+  placeName: string;
   totalEvents: number;
   completedEvents: number;
   timerStartAt: number;

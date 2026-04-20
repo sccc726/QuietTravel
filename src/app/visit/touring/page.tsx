@@ -16,6 +16,7 @@ interface TouringState {
   destinationId: string;
   destinationName: string;
   placeId: string;
+  placeName: string;      // 地点名称（用于确认页警告显示）
   totalEvents: number;
   completedEvents: number;
   timerStartAt: number;   // 当前倒计时起始时间戳（ms）
@@ -54,6 +55,7 @@ function TouringContent() {
   const destinationId = searchParams.get('destinationId') ?? '';
   const destinationName = searchParams.get('name') ?? '';
   const placeId = searchParams.get('placeId') ?? '';
+  const placeName = searchParams.get('placeName') ?? '';
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
   const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
 
@@ -116,6 +118,7 @@ function TouringContent() {
       destinationId,
       destinationName,
       placeId,
+      placeName,
       totalEvents,
       completedEvents: override?.completedEvents ?? eventsRef.current.length,
       timerStartAt: override?.timerStartAt ?? timerStartRef.current,
@@ -498,6 +501,7 @@ function TouringContent() {
         destinationId,
         destinationName,
         placeId,
+        placeName,
         totalEvents,
         completedEvents: eventsRef.current.length,
         timerStartAt: timerStartRef.current,
@@ -550,6 +554,7 @@ function TouringContent() {
               destinationId,
               destinationName,
               placeId,
+              placeName,
               totalEvents,
               completedEvents: eventsRef.current.length,
               timerStartAt: timerStartRef.current,

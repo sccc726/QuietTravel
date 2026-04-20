@@ -11,6 +11,7 @@ import { checkActiveTouring } from '@/lib/touring-resume';
 /** 游览状态摘要（从服务端 touringState 提取，用于判断是否跳过确认页） */
 interface TouringStateSummary {
   placeId: string;
+  placeName: string;
   completed: boolean;
   totalEvents: number;
   totalPlaces: number;
@@ -185,6 +186,7 @@ function MapPageContent() {
               if (ts && ts.placeId && typeof ts.placeId === 'string') {
                 tMap[ts.placeId] = {
                   placeId: ts.placeId,
+                  placeName: typeof ts.placeName === 'string' ? ts.placeName : '',
                   completed: ts.completed === true,
                   totalEvents: typeof ts.totalEvents === 'number' ? ts.totalEvents : 2,
                   totalPlaces: typeof ts.totalPlaces === 'number' ? ts.totalPlaces : 0,
@@ -412,7 +414,7 @@ function MapPageContent() {
 
   // === 保存状态并跳转 ===
   const handlePlaceClick = useCallback(
-    (placeId: string, destinationId: string, destinationName: string) => {
+    (placeId: string, destinationId: string, destinationName: string, placeName: string) => {
       // 保存当前状态
       if (selected) {
         saveMapState({
@@ -427,19 +429,22 @@ function MapPageContent() {
 
       const total = allAttractions.length + allCheckins.length;
       const nameParam = destinationName ? `&name=${encodeURIComponent(destinationName)}` : '';
+      const placeParam = `&placeName=${encodeURIComponent(placeName)}`;
 
       // 检查该地点是否有游览状态（已完成或进行中），有则直接跳转游览页
       const ts = touringStateMap[placeId];
       if (ts) {
+        const tsPlaceName = ts.placeName || placeName;
+        const tsPlaceParam = `&placeName=${encodeURIComponent(tsPlaceName)}`;
         router.push(
-          `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${ts.totalEvents}&total=${ts.totalPlaces}${nameParam}`
+          `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${ts.totalEvents}&total=${ts.totalPlaces}${nameParam}${tsPlaceParam}`
         );
         return;
       }
 
       // 全新地点，走确认页
       const totalParam = `&total=${total}`;
-      router.push(`/visit/confirm/${destinationId}/${placeId}?${nameParam.slice(1)}${totalParam}`);
+      router.push(`/visit/confirm/${destinationId}/${placeId}?${nameParam.slice(1)}${totalParam}${placeParam}`);
     },
     [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins, router, touringStateMap]
   );
@@ -821,10 +826,10 @@ function PlaceCard({
   item: PlaceItem;
   destinationId: string;
   destinationName: string;
-  onClick: (placeId: string, destinationId: string, destinationName: string) => void;
+  onClick: (placeId: string, destinationId: string, destinationName: string, placeName: string) => void;
 }) {
   const handleClick = () => {
-    onClick(item.id, destinationId, destinationName);
+    onClick(item.id, destinationId, destinationName, item.name);
   };
 
   return (
