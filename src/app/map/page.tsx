@@ -210,7 +210,7 @@ function MapPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destinationsLoaded, visitedMap]);
 
-  // 持久化目的地列表
+  // === 持久化目的地列表 ===
   useEffect(() => {
     if (destinationsLoaded && destinations.length > 0) {
       saveDestinations(destinations);
@@ -377,6 +377,38 @@ function MapPageContent() {
       return order(sa) - order(sb);
     });
   }, [allCheckins, selected?.id, getPlaceStatus]);
+
+  // === 补全 touringState 中缺失的 placeName ===
+  const placeNamePatchRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const entries = Object.entries(touringStateMap);
+    if (entries.length === 0) return;
+    // 合并景点+打卡地作为查找表
+    const allPlaces = [...allAttractions, ...allCheckins];
+    if (allPlaces.length === 0) return;
+
+    for (const [placeId, ts] of entries) {
+      if (ts.placeName || placeNamePatchRef.current.has(placeId)) continue; // 已有名称或正在补全，跳过
+      const found = allPlaces.find(p => p.id === placeId);
+      if (!found) continue;
+      // 标记为正在补全，防止重复触发
+      placeNamePatchRef.current.add(placeId);
+      // 补全本地状态
+      setTouringStateMap(prev => ({
+        ...prev,
+        [placeId]: { ...prev[placeId], placeName: found.name },
+      }));
+      // 保存到服务端
+      fetch('/api/progress', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          destinationSlug: destinationSlug(ts.destinationId),
+          touringState: { ...ts, placeName: found.name },
+        }),
+      }).catch(() => {});
+    }
+  }, [touringStateMap, allAttractions, allCheckins]);
 
   // === 保存状态并跳转 ===
   const handlePlaceClick = useCallback(

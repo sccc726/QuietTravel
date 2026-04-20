@@ -47,15 +47,42 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
     // 检查同目的地是否有未完成的游览
     fetch('/api/progress', { headers: authHeaders() })
       .then(res => res.json())
-      .then(data => {
+      .then(async data => {
         if (!data.progress) return;
         const destProgress = data.progress[destinationId];
         if (!destProgress?.touringState) return;
         const ts = destProgress.touringState;
         // 只关心未完成的、且不是当前地点的游览
         if (ts.completed || ts.placeId === placeId) return;
-        // 使用 touringState 中的 placeName，降级到友好提示
-        const pName = ts.placeName || '其他景点';
+        // 使用 touringState 中的 placeName
+        let pName = ts.placeName;
+        // 如果 placeName 为空，从景点/打卡地 API 反查
+        if (!pName) {
+          try {
+            const [attrRes, checkinRes] = await Promise.all([
+              fetch('/api/destination/attractions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destinationId, destinationName }),
+              }),
+              fetch('/api/destination/checkins', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destinationId, destinationName }),
+              }),
+            ]);
+            const [attrData, checkinData] = await Promise.all([attrRes.json(), checkinRes.json()]);
+            const allPlaces = [
+              ...(attrData.data?.attractions ?? []),
+              ...(checkinData.data?.checkins ?? []),
+            ];
+            const found = allPlaces.find((p: { id: string }) => p.id === ts.placeId);
+            if (found) pName = found.name;
+          } catch {
+            // 反查失败，降级
+          }
+          pName = pName || '其他景点';
+        }
         setOngoingTour({ placeId: ts.placeId, placeName: pName });
       })
       .catch(() => {});
