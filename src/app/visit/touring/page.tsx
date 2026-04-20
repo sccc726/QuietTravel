@@ -404,6 +404,18 @@ function TouringContent() {
           setMode('completed');
           // 保存完成状态
           await saveTouringState({ completed: true, completedEvents: state.totalEvents, events: finalEvents });
+          // 保存游记到 visit_journals 表
+          fetch('/api/journals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              destinationSlug: destinationId,
+              placeId: state.placeId,
+              placeName: state.placeName || placeName,
+              events: finalEvents,
+              hasImage: state.hasImage ?? false,
+            }),
+          }).catch(() => {});
           return;
         }
 
@@ -505,6 +517,21 @@ function TouringContent() {
     // 所有事件完成，标记游览结束
     setMode('finished');
     saveTouringState({ completed: true, completedEvents: events.length, events });
+    // 保存游记到 visit_journals 表（仅在完成瞬间写入一次）
+    const auth = getStoredAuth();
+    if (auth) {
+      fetch('/api/journals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          destinationSlug: destinationId,
+          placeId,
+          placeName,
+          events,
+          hasImage: hasImageRef.current,
+        }),
+      }).catch(() => {});
+    }
   }, [events.length, isTyping, isWaiting, mode, totalEvents, fetchNextEvent, startWaiting, saveTouringState]);
 
   // ─── 定期保存状态（每 30 秒）─────────────────────
@@ -598,24 +625,6 @@ function TouringContent() {
             },
           }),
         });
-
-        // 游览完成时，额外保存游记到 visit_journals 表
-        if (isCompleted) {
-          // 尝试获取 placeName：URL 参数 > touring_state 中的值
-          const savedState = data.progress?.[destinationId]?.touringState;
-          const journalPlaceName = placeName || savedState?.placeName || '';
-          fetch('/api/journals', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({
-              destinationSlug: destinationId,
-              placeId,
-              placeName: journalPlaceName,
-              events: eventsRef.current,
-              hasImage: hasImageRef.current,
-            }),
-          }).catch(() => {});
-        }
       } catch {
         // 保存失败不阻塞返回
       }
