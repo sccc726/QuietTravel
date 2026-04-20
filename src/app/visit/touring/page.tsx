@@ -471,7 +471,7 @@ function TouringContent() {
 
   useEffect(() => {
     if (mode !== 'active') return;
-    if (isTyping || isWaiting || allDone) return;
+    if (isTyping || isWaiting) return;
 
     if (events.length < totalEvents) {
       const timer = setTimeout(() => {
@@ -484,7 +484,7 @@ function TouringContent() {
     // 所有事件完成，标记游览结束
     setMode('completed');
     saveTouringState({ completed: true, completedEvents: events.length, events });
-  }, [events.length, isTyping, isWaiting, allDone, mode, totalEvents, fetchNextEvent, startWaiting, saveTouringState]);
+  }, [events.length, isTyping, isWaiting, mode, totalEvents, fetchNextEvent, startWaiting, saveTouringState]);
 
   // ─── 定期保存状态（每 30 秒）─────────────────────
 
