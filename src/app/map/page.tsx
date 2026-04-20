@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
 import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
 import { getStoredAuth, authHeaders, clearAuth } from '@/lib/auth';
-import { checkActiveTouring } from '@/lib/touring-resume';
 
 /** 游览状态摘要（从服务端 touringState 提取，用于判断是否跳过确认页） */
 interface TouringStateSummary {
@@ -106,21 +105,6 @@ function MapPageContent() {
     } else {
       setDisplayName(auth.username);
     }
-  }, [router]);
-
-  // === 检查是否有活跃游览（需跳转回游览页） ===
-  const touringChecked = useRef(false);
-  useEffect(() => {
-    if (touringChecked.current) return;
-    touringChecked.current = true;
-    const auth = getStoredAuth();
-    if (!auth) return;
-
-    checkActiveTouring().then(url => {
-      if (url) {
-        router.replace(url);
-      }
-    });
   }, [router]);
 
   // === 服务端进度（已游览地点） ===
