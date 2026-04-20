@@ -131,6 +131,7 @@ function MapPageContent() {
   const [attractionsLoading, setAttractionsLoading] = useState(false);
   const [checkinsLoading, setCheckinsLoading] = useState(false);
   const [loadedForId, setLoadedForId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'attractions' | 'checkins'>('attractions');
 
   // 用 ref 跟踪数据完整度，供 loadedForId 守卫使用（不触发重渲染）
   const aiDescriptionRef = useRef(aiDescription);
@@ -545,20 +546,44 @@ function MapPageContent() {
                 )}
               </p>
 
-              {/* 双栏布局 */}
-              <div className="grid grid-cols-2 gap-4 pl-6">
-                {/* 左栏：景点 */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2.5">
+              {/* 标签切换 */}
+              <div className="pl-6">
+                <div className="flex items-center gap-4 mb-3">
+                  <button
+                    onClick={() => setActiveTab('attractions')}
+                    className="flex items-center gap-1.5 pb-1 border-b transition-all duration-300"
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      borderColor: activeTab === 'attractions' ? 'var(--color-accent-green)' : 'transparent',
+                    }}
+                  >
                     <Landmark className="w-3 h-3 text-accent-green/60" />
                     <span
-                      className="text-[11px] text-muted-foreground/45 tracking-widest"
-                      style={{ fontFamily: 'var(--font-serif)' }}
+                      className={`text-[11px] tracking-widest ${activeTab === 'attractions' ? 'text-accent-green/70' : 'text-muted-foreground/35'}`}
                     >
-                      景点
+                      景点{sortedAttractions.length > 0 ? ` (${sortedAttractions.length})` : ''}
                     </span>
-                  </div>
-                  {attractionsLoading ? (
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('checkins')}
+                    className="flex items-center gap-1.5 pb-1 border-b transition-all duration-300"
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      borderColor: activeTab === 'checkins' ? 'var(--color-accent-green)' : 'transparent',
+                    }}
+                  >
+                    <Camera className="w-3 h-3 text-orange-400/60" />
+                    <span
+                      className={`text-[11px] tracking-widest ${activeTab === 'checkins' ? 'text-accent-green/70' : 'text-muted-foreground/35'}`}
+                    >
+                      打卡地{sortedCheckins.length > 0 ? ` (${sortedCheckins.length})` : ''}
+                    </span>
+                  </button>
+                </div>
+
+                {/* 景点列表 */}
+                {activeTab === 'attractions' && (
+                  attractionsLoading ? (
                     <p
                       className="text-[11px] text-muted-foreground/30 tracking-wider py-6 text-center animate-pulse"
                       style={{ fontFamily: 'var(--font-serif)' }}
@@ -580,21 +605,12 @@ function MapPageContent() {
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground/30 py-4 text-center">暂无数据</p>
-                  )}
-                </div>
+                  )
+                )}
 
-                {/* 右栏：打卡地 */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2.5">
-                    <Camera className="w-3 h-3 text-orange-400/60" />
-                    <span
-                      className="text-[11px] text-muted-foreground/45 tracking-widest"
-                      style={{ fontFamily: 'var(--font-serif)' }}
-                    >
-                      打卡地
-                    </span>
-                  </div>
-                  {checkinsLoading ? (
+                {/* 打卡地列表 */}
+                {activeTab === 'checkins' && (
+                  checkinsLoading ? (
                     <p
                       className="text-[11px] text-muted-foreground/30 tracking-wider py-6 text-center animate-pulse"
                       style={{ fontFamily: 'var(--font-serif)' }}
@@ -616,8 +632,8 @@ function MapPageContent() {
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground/30 py-4 text-center">暂无数据</p>
-                  )}
-                </div>
+                  )
+                )}
               </div>
 
               {/* 底部操作 */}
