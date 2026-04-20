@@ -3,7 +3,7 @@ import { players, playerProgress } from "./schema";
 
 export const playerProgressRelations = relations(playerProgress, ({one}) => ({
 	player: one(players, {
-		fields: [playerProgress.player_id],
+		fields: [playerProgress.playerId],
 		references: [players.id]
 	}),
 }));

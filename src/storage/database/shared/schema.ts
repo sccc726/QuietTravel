@@ -1,47 +1,77 @@
-import { pgTable, serial, timestamp, unique, text, foreignKey, integer, jsonb, index } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, index, foreignKey, unique, pgPolicy, integer, text, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+
 
 
 export const healthCheck = pgTable("health_check", {
 	id: serial().notNull(),
-	updated_at: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
+
+export const playerProgress = pgTable("player_progress", {
+	id: serial().primaryKey().notNull(),
+	playerId: integer("player_id").notNull(),
+	destinationSlug: text("destination_slug").notNull(),
+	visitedPlaceIds: text("visited_place_ids").array().default([""]),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+	totalPlaces: integer("total_places").default(0),
+}, (table) => [
+	index("player_progress_player_id_idx").using("btree", table.playerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.playerId],
+			foreignColumns: [players.id],
+			name: "player_progress_player_id_players_id_fk"
+		}).onDelete("cascade"),
+	unique("player_progress_player_id_destination_slug_key").on(table.playerId, table.destinationSlug),
+	pgPolicy("player_progress_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("player_progress_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("player_progress_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("player_progress_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);
 
 export const players = pgTable("players", {
 	id: serial().primaryKey().notNull(),
 	username: text().notNull(),
 	password: text().notNull(),
-	created_at: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
 	unique("players_username_key").on(table.username),
+	pgPolicy("players_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("players_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("players_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("players_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
-export const playerProgress = pgTable("player_progress", {
-	id: serial().primaryKey().notNull(),
-	player_id: integer("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-	destination_slug: text("destination_slug").notNull(),
-	visited_place_ids: text("visited_place_ids").array().default([]),
-	updated_at: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+export const cacheAttractions = pgTable("cache_attractions", {
+	destinationSlug: text("destination_slug").primaryKey().notNull(),
+	attractions: jsonb().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
-	unique("player_progress_player_id_destination_slug_key").on(table.player_id, table.destination_slug),
-	index("player_progress_player_id_idx").on(table.player_id),
+	pgPolicy("cache_attractions_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("cache_attractions_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("cache_attractions_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("cache_attractions_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);
+
+export const cacheCheckins = pgTable("cache_checkins", {
+	destinationSlug: text("destination_slug").primaryKey().notNull(),
+	checkins: jsonb().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+}, (table) => [
+	pgPolicy("cache_checkins_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("cache_checkins_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("cache_checkins_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("cache_checkins_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const cacheInfo = pgTable("cache_info", {
-	destination_slug: text("destination_slug").primaryKey().notNull(),
-	destination_name: text("destination_name").notNull(),
+	destinationSlug: text("destination_slug").primaryKey().notNull(),
+	destinationName: text("destination_name").notNull(),
 	info: jsonb().notNull(),
-	created_at: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-});
-
-export const cacheAttractions = pgTable("cache_attractions", {
-	destination_slug: text("destination_slug").primaryKey().notNull(),
-	attractions: jsonb().notNull(),
-	created_at: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-});
-
-export const cacheCheckins = pgTable("cache_checkins", {
-	destination_slug: text("destination_slug").primaryKey().notNull(),
-	checkins: jsonb().notNull(),
-	created_at: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-});
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+}, (table) => [
+	pgPolicy("cache_info_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("cache_info_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("cache_info_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("cache_info_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);

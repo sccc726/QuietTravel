@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('player_progress')
-    .select('destination_slug, visited_place_ids, updated_at')
+    .select('destination_slug, visited_place_ids, total_places, updated_at')
     .eq('player_id', playerId);
 
   if (error) {
@@ -21,11 +21,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '查询失败' }, { status: 500 });
   }
 
-  // 转换为 { [slug]: { visitedPlaceIds, updatedAt } } 格式
-  const progress: Record<string, { visitedPlaceIds: string[]; updatedAt: string }> = {};
+  // 转换为 { [slug]: { visitedPlaceIds, totalPlaces, updatedAt } } 格式
+  const progress: Record<string, { visitedPlaceIds: string[]; totalPlaces: number; updatedAt: string }> = {};
   for (const row of data ?? []) {
     progress[row.destination_slug] = {
       visitedPlaceIds: row.visited_place_ids ?? [],
+      totalPlaces: row.total_places ?? 0,
       updatedAt: row.updated_at,
     };
   }
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
   const playerId = parseToken(token);
   if (!playerId) return NextResponse.json({ error: '登录已过期' }, { status: 401 });
 
-  const { destinationSlug, visitedPlaceIds } = await request.json();
+  const { destinationSlug, visitedPlaceIds, totalPlaces } = await request.json();
 
   if (!destinationSlug || !Array.isArray(visitedPlaceIds)) {
     return NextResponse.json({ error: '参数不完整' }, { status: 400 });
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
         player_id: playerId,
         destination_slug: destinationSlug,
         visited_place_ids: visitedPlaceIds,
+        total_places: totalPlaces ?? 0,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'player_id,destination_slug' }

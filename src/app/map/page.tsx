@@ -94,7 +94,7 @@ function MapPageContent() {
   }, [router]);
 
   // === 服务端进度（已游览地点） ===
-  const [visitedMap, setVisitedMap] = useState<Record<string, string[]>>({});
+  const [visitedMap, setVisitedMap] = useState<Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>>({});
 
   // === 目的地列表 ===
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -143,9 +143,9 @@ function MapPageContent() {
         .then(res => res.json())
         .then(data => {
           if (data.progress) {
-            const map: Record<string, string[]> = {};
-            for (const [slug, info] of Object.entries(data.progress as Record<string, { visitedPlaceIds: string[] }>)) {
-              map[slug] = info.visitedPlaceIds;
+            const map: Record<string, { visitedPlaceIds: string[]; totalPlaces: number }> = {};
+            for (const [slug, info] of Object.entries(data.progress as Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>)) {
+              map[slug] = { visitedPlaceIds: info.visitedPlaceIds, totalPlaces: info.totalPlaces ?? 0 };
             }
             setVisitedMap(map);
           }
@@ -183,7 +183,7 @@ function MapPageContent() {
 
     // 替换已游览的地点（从服务端进度获取）
     const savedDestId = saved.selectedId;
-    const visitedIds = savedDestId ? (visitedMap[savedDestId] ?? []) : [];
+    const visitedIds = savedDestId ? (visitedMap[savedDestId]?.visitedPlaceIds ?? []) : [];
     if (visitedIds.length > 0 && savedDestId) {
       const replaceVisited = (display: PlaceItem[], pool: PlaceItem[]): PlaceItem[] => {
         const currentIds = new Set(display.map(p => p.id));
@@ -377,8 +377,9 @@ function MapPageContent() {
           displayCheckinIds: displayCheckins.map(p => p.id),
         });
       }
-      const nameParam = destinationName ? `?name=${encodeURIComponent(destinationName)}` : '';
-      router.push(`/visit/confirm/${destinationId}/${placeId}${nameParam}`);
+      const nameParam = destinationName ? `&name=${encodeURIComponent(destinationName)}` : '';
+      const totalParam = `&total=${allAttractions.length + allCheckins.length}`;
+      router.push(`/visit/confirm/${destinationId}/${placeId}?${nameParam.slice(1)}${totalParam}`);
     },
     [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins, router]
   );
@@ -420,6 +421,7 @@ function MapPageContent() {
         <MapInner
           destinations={destinations}
           selectedId={selected?.id ?? null}
+          visitedMap={visitedMap}
           onDestinationClick={handleDestinationClick}
         />
 

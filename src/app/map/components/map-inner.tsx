@@ -16,24 +16,43 @@ L.Icon.Default.mergeOptions({
 interface MapInnerProps {
   destinations: Destination[];
   selectedId: string | null;
+  visitedMap: Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>;
   onDestinationClick: (dest: Destination) => void;
+}
+
+/** 目的地标记类型 */
+type MarkerState = 'unvisited' | 'visited' | 'completed';
+
+function getMarkerState(dest: Destination, visitedMap: Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>): MarkerState {
+  const entry = visitedMap[dest.id];
+  if (!entry || entry.visitedPlaceIds.length === 0) return 'unvisited';
+  if (entry.totalPlaces > 0 && entry.visitedPlaceIds.length >= entry.totalPlaces) return 'completed';
+  return 'visited';
 }
 
 /** 中国中心视角 */
 const INITIAL_CENTER: L.LatLngExpression = [34.5, 108];
 const INITIAL_ZOOM = 5;
 
-/** 创建橙色脉冲光点图标 */
-function createMarkerIcon(isSelected: boolean): L.DivIcon {
+/** 创建目的地光点图标 */
+function createMarkerIcon(state: MarkerState, isSelected: boolean): L.DivIcon {
+  // 颜色映射
+  const colors: Record<MarkerState, { core: string; pulse: string; ring: string }> = {
+    unvisited: { core: 'oklch(0.72 0.17 55)', pulse: 'oklch(0.72 0.17 55 / 40%)', ring: 'oklch(0.72 0.17 55 / 45%)' },   // 橙色
+    visited:   { core: 'oklch(0.75 0.12 160)', pulse: 'oklch(0.75 0.12 160 / 40%)', ring: 'oklch(0.75 0.12 160 / 45%)' }, // 浅绿色
+    completed: { core: 'oklch(0.65 0.02 90)', pulse: 'oklch(0.65 0.02 90 / 30%)', ring: 'oklch(0.65 0.02 90 / 35%)' },   // 灰色
+  };
+  const c = colors[state];
   const selectedRing = isSelected
-    ? '<div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid oklch(0.72 0.17 55 / 45%);"></div>'
+    ? `<div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid ${c.ring};"></div>`
     : '';
+  const noPulse = state === 'completed' ? 'animation:none;' : '';
   return L.divIcon({
     className: 'destination-marker-wrapper',
     html: `
       <div class="destination-marker">
-        <div class="pulse"></div>
-        <div class="core"></div>
+        <div class="pulse" style="background:${c.pulse};${noPulse}"></div>
+        <div class="core" style="background:${c.core}"></div>
         ${selectedRing}
       </div>
     `,
@@ -45,6 +64,7 @@ function createMarkerIcon(isSelected: boolean): L.DivIcon {
 export default function MapInner({
   destinations,
   selectedId,
+  visitedMap,
   onDestinationClick,
 }: MapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,8 +131,9 @@ export default function MapInner({
     // 添加新标记
     for (const dest of destinations) {
       if (!currentIds.has(dest.id)) {
+        const state = getMarkerState(dest, visitedMap);
         const marker = L.marker([dest.coordinates.lat, dest.coordinates.lng], {
-          icon: createMarkerIcon(false),
+          icon: createMarkerIcon(state, false),
         })
           .addTo(map)
           .on('click', () => {
@@ -129,14 +150,16 @@ export default function MapInner({
         markersRef.current.set(dest.id, marker);
       }
     }
-  }, [destinations]);
+  }, [destinations, visitedMap]);
 
-  // 选中态更新 — 只切换图标
+  // 选中态/访问态更新 — 重新设置图标
   useEffect(() => {
     for (const [id, marker] of markersRef.current) {
-      marker.setIcon(createMarkerIcon(id === selectedId));
+      const dest = destinations.find(d => d.id === id);
+      const state = dest ? getMarkerState(dest, visitedMap) : 'unvisited';
+      marker.setIcon(createMarkerIcon(state, id === selectedId));
     }
-  }, [selectedId]);
+  }, [selectedId, visitedMap, destinations]);
 
   // 选中目的地时飞到该位置
   useEffect(() => {

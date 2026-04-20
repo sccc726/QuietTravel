@@ -17,6 +17,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const destinationName = searchParams.get('name') ?? '';
+  const totalPlaces = searchParams.get('total') ?? '0';
 
   // 从 placeId 解析类型
   const placeType: PlaceType = placeId.includes('-checkin-') ? 'checkin' : 'attraction';
@@ -36,7 +37,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
     if (eventCount === null) return;
     const nameParam = destinationName ? `&name=${encodeURIComponent(destinationName)}` : '';
     router.push(
-      `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${eventCount}${nameParam}`
+      `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${eventCount}&total=${totalPlaces}${nameParam}`
     );
   };
 

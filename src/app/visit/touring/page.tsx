@@ -53,6 +53,7 @@ function TouringContent() {
 
   // 背景音乐
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
   const [muted, setMuted] = useState(false);
 
   // 初始化并播放背景音乐
@@ -235,6 +236,7 @@ function TouringContent() {
           body: JSON.stringify({
             destinationSlug: destinationId,
             visitedPlaceIds: updatedVisited,
+            totalPlaces,
           }),
         });
       } catch {
