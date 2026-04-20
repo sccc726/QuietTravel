@@ -360,9 +360,29 @@ function TouringContent() {
 
         // ─── 已完成的游览：显示"已来过"视图 ───
         if (state.completed) {
-          setEvents(state.events ?? []);
+          const restoredEvents = state.events ?? [];
+          setEvents(restoredEvents);
           if (state.placeName) placeNameRef.current = state.placeName;
           setMode('completed');
+          // 事件为空时从 journals API 兜底获取
+          if (restoredEvents.length === 0) {
+            try {
+              const journalRes = await fetch(
+                `/api/journals?destinationSlug=${encodeURIComponent(destinationId)}&placeId=${encodeURIComponent(placeId)}`,
+                { headers: authHeaders() },
+              );
+              const journalData = await journalRes.json();
+              if (journalData.journals && journalData.journals.length > 0) {
+                const latest = journalData.journals[0];
+                if (latest.events && Array.isArray(latest.events) && latest.events.length > 0) {
+                  setEvents(latest.events);
+                  if (latest.place_name) placeNameRef.current = latest.place_name;
+                }
+              }
+            } catch {
+              // journals 兜底失败，保持空事件
+            }
+          }
           return;
         }
 
@@ -609,31 +629,44 @@ function TouringContent() {
           ? [...new Set([...currentVisited, placeId])]
           : currentVisited;
 
-        // 保存进度，并标记游览完成（而非清除 touringState）
-        await fetch('/api/progress', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({
-            destinationSlug: destinationId,
-            visitedPlaceIds: updatedVisited,
-            totalPlaces,
-            touringState: {
-              destinationId,
-              destinationName,
-              placeId,
-              placeName,
-              totalEvents,
-              completedEvents: eventsRef.current.length,
-              timerStartAt: timerStartRef.current,
-              intervalMs: intervalMsRef.current,
-              hasImage: hasImageRef.current,
+        if (modeRef.current === 'completed') {
+          // completed 模式 = 查看旧游记，不覆盖 touring_state（避免空事件覆盖正确数据）
+          // 只更新 visitedPlaceIds
+          await fetch('/api/progress', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              destinationSlug: destinationId,
+              visitedPlaceIds: updatedVisited,
+            }),
+          });
+        } else {
+          // finished/active 模式 = 刚完成或进行中，正常保存 touring_state
+          await fetch('/api/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              destinationSlug: destinationId,
+              visitedPlaceIds: updatedVisited,
               totalPlaces,
-              completed: eventsRef.current.length >= totalEvents,
-              events: eventsRef.current,
-              lastSavedAt: Date.now(),
-            },
-          }),
-        });
+              touringState: {
+                destinationId,
+                destinationName,
+                placeId,
+                placeName: placeNameRef.current || placeName,
+                totalEvents,
+                completedEvents: eventsRef.current.length,
+                timerStartAt: timerStartRef.current,
+                intervalMs: intervalMsRef.current,
+                hasImage: hasImageRef.current,
+                totalPlaces,
+                completed: eventsRef.current.length >= totalEvents,
+                events: eventsRef.current,
+                lastSavedAt: Date.now(),
+              },
+            }),
+          });
+        }
       } catch {
         // 保存失败不阻塞返回
       }

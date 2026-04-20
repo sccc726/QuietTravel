@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-/** PATCH /api/progress — 仅更新 touring_state（轻量接口） */
+/** PATCH /api/progress — 轻量更新接口（支持 touring_state 和/或 visitedPlaceIds） */
 export async function PATCH(request: NextRequest) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: '未登录' }, { status: 401 });
@@ -88,7 +88,7 @@ export async function PATCH(request: NextRequest) {
   const playerId = parseToken(token);
   if (!playerId) return NextResponse.json({ error: '登录已过期' }, { status: 401 });
 
-  const { destinationSlug, touringState } = await request.json();
+  const { destinationSlug, touringState, visitedPlaceIds } = await request.json();
 
   if (!destinationSlug) {
     return NextResponse.json({ error: '参数不完整' }, { status: 400 });
@@ -96,36 +96,31 @@ export async function PATCH(request: NextRequest) {
 
   const client = getSupabaseClient();
 
+  // 构建更新字段
+  const updateFields: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (touringState === null) {
-    // 清除游览状态
-    const { error } = await client
-      .from('player_progress')
-      .update({ touring_state: null, updated_at: new Date().toISOString() })
-      .eq('player_id', playerId)
-      .eq('destination_slug', destinationSlug);
+    updateFields.touring_state = null;
+  } else if (touringState !== undefined) {
+    updateFields.touring_state = touringState;
+  }
+  if (visitedPlaceIds !== undefined) {
+    updateFields.visited_place_ids = visitedPlaceIds;
+  }
 
-    if (error) {
-      console.error('[/api/progress PATCH] 清除 touring_state 失败:', error);
-      return NextResponse.json({ error: '保存失败' }, { status: 500 });
-    }
-  } else {
-    // 更新游览状态（upsert 以防记录不存在）
-    const { error } = await client
-      .from('player_progress')
-      .upsert(
-        {
-          player_id: playerId,
-          destination_slug: destinationSlug,
-          touring_state: touringState,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'player_id,destination_slug' }
-      );
+  const { error } = await client
+    .from('player_progress')
+    .upsert(
+      {
+        player_id: playerId,
+        destination_slug: destinationSlug,
+        ...updateFields,
+      },
+      { onConflict: 'player_id,destination_slug' }
+    );
 
-    if (error) {
-      console.error('[/api/progress PATCH] 写入 touring_state 失败:', error);
-      return NextResponse.json({ error: '保存失败' }, { status: 500 });
-    }
+  if (error) {
+    console.error('[/api/progress PATCH] 更新失败:', error);
+    return NextResponse.json({ error: '保存失败' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
