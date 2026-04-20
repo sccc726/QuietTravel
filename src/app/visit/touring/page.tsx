@@ -329,7 +329,28 @@ function TouringContent() {
         const state: TouringState | null = data.progress?.[destinationId]?.touringState ?? null;
 
         if (!state || state.placeId !== placeId || state.destinationId !== destinationId) {
-          // 没有匹配的游览状态，正常初始化（无 loading 闪现）
+          // 没有匹配的游览状态，检查是否已去过该地点
+          const visitedPlaces: string[] = data.progress?.[destinationId]?.visitedPlaceIds ?? [];
+          if (visitedPlaces.includes(placeId)) {
+            // 已去过的地点，从 journals 表读取最新游记
+            try {
+              const journalRes = await fetch(
+                `/api/journals?destinationSlug=${encodeURIComponent(destinationId)}&placeId=${encodeURIComponent(placeId)}`,
+                { headers: authHeaders() },
+              );
+              const journalData = await journalRes.json();
+              if (journalData.journals && journalData.journals.length > 0) {
+                const latest = journalData.journals[0];
+                setEvents(latest.events ?? []);
+                if (latest.has_image) setHasImage(true);
+                setMode('completed');
+                return;
+              }
+            } catch {
+              // journals 查询失败，降级为正常初始化
+            }
+          }
+          // 未去过的地点，正常初始化
           setMode('active');
           fetchNextEvent();
           startWaiting();
@@ -577,12 +598,27 @@ function TouringContent() {
             },
           }),
         });
+
+        // 游览完成时，额外保存游记到 visit_journals 表
+        if (isCompleted) {
+          fetch('/api/journals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              destinationSlug: destinationId,
+              placeId,
+              placeName,
+              events: eventsRef.current,
+              hasImage: hasImageRef.current,
+            }),
+          }).catch(() => {});
+        }
       } catch {
         // 保存失败不阻塞返回
       }
     }
     router.push('/map');
-  }, [destinationId, destinationName, placeId, router, totalEvents, totalPlaces]);
+  }, [destinationId, destinationName, placeId, placeName, router, totalEvents, totalPlaces]);
 
   // ─── 重新游览 ─────────────────────────────────────
 

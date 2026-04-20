@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { players, playerProgress } from "./schema";
+import { players, playerProgress, visitJournals } from "./schema";
 
 export const playerProgressRelations = relations(playerProgress, ({one}) => ({
 	player: one(players, {
@@ -8,6 +8,14 @@ export const playerProgressRelations = relations(playerProgress, ({one}) => ({
 	}),
 }));
 
+export const visitJournalsRelations = relations(visitJournals, ({one}) => ({
+	player: one(players, {
+		fields: [visitJournals.playerId],
+		references: [players.id]
+	}),
+}));
+
 export const playersRelations = relations(players, ({many}) => ({
 	playerProgresses: many(playerProgress),
+	visitJournals: many(visitJournals),
 }));
