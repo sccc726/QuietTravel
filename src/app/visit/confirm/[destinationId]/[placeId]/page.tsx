@@ -54,8 +54,8 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
         const ts = destProgress.touringState;
         // 只关心未完成的、且不是当前地点的游览
         if (ts.completed || ts.placeId === placeId) return;
-        // 使用 touringState 中的 placeName，降级到 ID
-        const pName = ts.placeName || ts.placeId;
+        // 使用 touringState 中的 placeName，降级到友好提示
+        const pName = ts.placeName || '其他景点';
         setOngoingTour({ placeId: ts.placeId, placeName: pName });
       })
       .catch(() => {});

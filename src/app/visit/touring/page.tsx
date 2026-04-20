@@ -345,6 +345,12 @@ function TouringContent() {
 
         // ─── 进行中的游览：恢复 ───
 
+        // 补全 placeName（历史数据可能为空），触发一次保存
+        if (!state.placeName && placeName) {
+          state.placeName = placeName;
+          saveTouringState();
+        }
+
         // 找到匹配的游览状态，计算恢复逻辑
         setRestoringText('恢复游览进度...');
         const elapsed = Date.now() - state.timerStartAt;
