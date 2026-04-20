@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
@@ -33,12 +33,6 @@ const MapInner = dynamic(() => import('./components/map-inner'), {
   ),
 });
 
-/** 从数组中随机取 n 条 */
-function pickRandom<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
-}
-
 /** sessionStorage 键 */
 const DESTS_STORAGE_KEY = 'cyber-voyage-destinations';
 const MAP_STATE_KEY = 'cyber-voyage-map-state';
@@ -49,8 +43,6 @@ interface MapPageState {
   aiDescription: string;
   allAttractions: PlaceItem[];
   allCheckins: PlaceItem[];
-  displayAttractionIds: string[];
-  displayCheckinIds: string[];
 }
 
 function saveMapState(state: MapPageState) {
@@ -148,9 +140,6 @@ function MapPageContent() {
   const [loadSuccess, setLoadSuccess] = useState(false); // 三个请求是否都有有效数据
 
   // === 展示列表 ===
-  const [displayAttractions, setDisplayAttractions] = useState<PlaceItem[]>([]);
-  const [displayCheckins, setDisplayCheckins] = useState<PlaceItem[]>([]);
-
   // === 搜索相关 ===
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
@@ -216,36 +205,6 @@ function MapPageContent() {
     setAllCheckins(saved.allCheckins);
     setLoadedForId(saved.selectedId);
 
-    // 从全量数据恢复展示列表
-    const restoreDisplay = (ids: string[], pool: PlaceItem[]): PlaceItem[] => {
-      const map = new Map(pool.map(p => [p.id, p]));
-      return ids.map(id => map.get(id)).filter((p): p is PlaceItem => !!p);
-    };
-
-    let restoredAttrs = restoreDisplay(saved.displayAttractionIds, saved.allAttractions);
-    let restoredCheckins = restoreDisplay(saved.displayCheckinIds, saved.allCheckins);
-
-    // 替换已游览的地点（从服务端进度获取）
-    const savedDestId = saved.selectedId;
-    const visitedIds = savedDestId ? (visitedMap[savedDestId]?.visitedPlaceIds ?? []) : [];
-    if (visitedIds.length > 0 && savedDestId) {
-      const replaceVisited = (display: PlaceItem[], pool: PlaceItem[]): PlaceItem[] => {
-        const currentIds = new Set(display.map(p => p.id));
-        const candidates = pool.filter(p => !currentIds.has(p.id) && !visitedIds.includes(p.id));
-        return display.map(item => {
-          if (visitedIds.includes(item.id) && candidates.length > 0) {
-            const replacement = candidates.shift()!;
-            return replacement;
-          }
-          return item;
-        });
-      };
-      restoredAttrs = replaceVisited(restoredAttrs, saved.allAttractions);
-      restoredCheckins = replaceVisited(restoredCheckins, saved.allCheckins);
-    }
-
-    setDisplayAttractions(restoredAttrs);
-    setDisplayCheckins(restoredCheckins);
     clearMapState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destinationsLoaded, visitedMap]);
@@ -314,7 +273,6 @@ function MapPageContent() {
         if (cancelled) return;
         const items: PlaceItem[] = data.data?.attractions ?? [];
         setAllAttractions(items);
-        setDisplayAttractions(pickRandom(items, 3));
       })
       .catch(() => {})
       .finally(() => { attrDone = true; if (!cancelled) setAttractionsLoading(false); checkAllDone(); });
@@ -331,7 +289,6 @@ function MapPageContent() {
         if (cancelled) return;
         const items: PlaceItem[] = data.data?.checkins ?? [];
         setAllCheckins(items);
-        setDisplayCheckins(pickRandom(items, 3));
       })
       .catch(() => {})
       .finally(() => { checkinDone = true; if (!cancelled) setCheckinsLoading(false); checkAllDone(); });
@@ -401,11 +358,24 @@ function MapPageContent() {
     []
   );
 
-  // === 换一批 ===
-  const handleRefresh = useCallback(() => {
-    setDisplayAttractions(pickRandom(allAttractions, 3));
-    setDisplayCheckins(pickRandom(allCheckins, 3));
-  }, [allAttractions, allCheckins]);
+  // === 排序列表：游览中 → 未游览 → 已去过 ===
+  const sortedAttractions = useMemo(() => {
+    return [...allAttractions].sort((a, b) => {
+      const sa = getPlaceStatus(a.id, selected?.id ?? '');
+      const sb = getPlaceStatus(b.id, selected?.id ?? '');
+      const order = (s?: string) => s === 'touring' ? 0 : s === 'visited' ? 2 : 1;
+      return order(sa) - order(sb);
+    });
+  }, [allAttractions, selected?.id, getPlaceStatus]);
+
+  const sortedCheckins = useMemo(() => {
+    return [...allCheckins].sort((a, b) => {
+      const sa = getPlaceStatus(a.id, selected?.id ?? '');
+      const sb = getPlaceStatus(b.id, selected?.id ?? '');
+      const order = (s?: string) => s === 'touring' ? 0 : s === 'visited' ? 2 : 1;
+      return order(sa) - order(sb);
+    });
+  }, [allCheckins, selected?.id, getPlaceStatus]);
 
   // === 保存状态并跳转 ===
   const handlePlaceClick = useCallback(
@@ -417,8 +387,6 @@ function MapPageContent() {
           aiDescription,
           allAttractions,
           allCheckins,
-          displayAttractionIds: displayAttractions.map(p => p.id),
-          displayCheckinIds: displayCheckins.map(p => p.id),
         });
       }
 
@@ -441,7 +409,7 @@ function MapPageContent() {
       const totalParam = `&total=${total}`;
       router.push(`/visit/confirm/${destinationId}/${placeId}?${nameParam.slice(1)}${totalParam}${placeParam}`);
     },
-    [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins, router, touringStateMap]
+    [selected, aiDescription, allAttractions, allCheckins, router, touringStateMap]
   );
 
   // === 返回首页 ===
@@ -597,9 +565,9 @@ function MapPageContent() {
                     >
                       正在搜索{selected.name}的景点...
                     </p>
-                  ) : displayAttractions.length > 0 ? (
-                    <div className="space-y-2">
-                      {displayAttractions.map(item => (
+                  ) : sortedAttractions.length > 0 ? (
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                      {sortedAttractions.map(item => (
                         <PlaceCard
                           key={item.id}
                           item={item}
@@ -633,9 +601,9 @@ function MapPageContent() {
                     >
                       正在寻找{selected.name}的打卡地...
                     </p>
-                  ) : displayCheckins.length > 0 ? (
-                    <div className="space-y-2">
-                      {displayCheckins.map(item => (
+                  ) : sortedCheckins.length > 0 ? (
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                      {sortedCheckins.map(item => (
                         <PlaceCard
                           key={item.id}
                           item={item}
@@ -653,15 +621,7 @@ function MapPageContent() {
               </div>
 
               {/* 底部操作 */}
-              <div className="flex items-center justify-center gap-4 mt-4">
-                {(allAttractions.length > 3 || allCheckins.length > 3) && (
-                  <button
-                    onClick={handleRefresh}
-                    className="text-[11px] text-muted-foreground/35 hover:text-accent-green/70 transition-colors duration-300 tracking-wider"
-                  >
-                    换一批
-                  </button>
-                )}
+              <div className="flex items-center justify-center mt-4">
                 <button
                   onClick={() => setSelected(null)}
                   className="text-[11px] text-muted-foreground/35 hover:text-muted-foreground/60 transition-colors duration-300 tracking-wider"
