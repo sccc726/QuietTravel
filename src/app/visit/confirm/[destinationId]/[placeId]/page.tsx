@@ -107,13 +107,13 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
         {/* 未完成游览警告 */}
         {ongoingTour && (
-          <div className="flex items-start gap-2.5 px-4 py-3 rounded-lg bg-accent/5 border border-accent/10 text-left">
-            <AlertTriangle className="w-4 h-4 text-accent/70 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-lg bg-yellow-50/80 border border-yellow-200/60 text-left">
+            <AlertTriangle className="w-4 h-4 text-yellow-600 shrink-0 mt-0.5" />
             <p
-              className="text-xs text-muted-foreground/55 leading-relaxed"
+              className="text-xs text-yellow-800/70 leading-relaxed"
               style={{ fontFamily: 'var(--font-serif)' }}
             >
-              你还在「<span className="text-foreground/60">{ongoingTour.placeName}</span>」游览中，前往新地点将覆盖该景点的进度
+              你还在「<span className="text-yellow-900 font-medium">{ongoingTour.placeName}</span>」游览中，前往新地点将覆盖该景点的进度
             </p>
           </div>
         )}

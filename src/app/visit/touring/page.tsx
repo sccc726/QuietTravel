@@ -59,7 +59,7 @@ function TouringContent() {
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
   const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
 
-  // 页面模式：'loading' | 'active' | 'completed'
+  // 页面模式：'active' | 'completed'
   const [mode, setMode] = useState<'loading' | 'active' | 'completed'>('loading');
 
   // 事件状态
@@ -76,7 +76,7 @@ function TouringContent() {
   const [isWaiting, setIsWaiting] = useState(true);
 
   // 恢复状态
-  const [restoringText, setRestoringText] = useState('恢复游览进度...');
+  const [restoringText, setRestoringText] = useState('');
 
   // hasImage 跟踪（每个地点最多1张图）
   const [hasImage, setHasImage] = useState(false);
@@ -316,7 +316,7 @@ function TouringContent() {
     const tryRestore = async () => {
       const auth = getStoredAuth();
       if (!auth) {
-        // 未登录，正常初始化
+        // 未登录，正常初始化（无 loading 闪现）
         setMode('active');
         fetchNextEvent();
         startWaiting();
@@ -329,7 +329,7 @@ function TouringContent() {
         const state: TouringState | null = data.progress?.[destinationId]?.touringState ?? null;
 
         if (!state || state.placeId !== placeId || state.destinationId !== destinationId) {
-          // 没有匹配的游览状态，正常初始化
+          // 没有匹配的游览状态，正常初始化（无 loading 闪现）
           setMode('active');
           fetchNextEvent();
           startWaiting();
@@ -346,6 +346,7 @@ function TouringContent() {
         // ─── 进行中的游览：恢复 ───
 
         // 找到匹配的游览状态，计算恢复逻辑
+        setRestoringText('恢复游览进度...');
         const elapsed = Date.now() - state.timerStartAt;
         const missedCount = Math.min(
           Math.floor(elapsed / AVG_INTERVAL_MS),
@@ -650,9 +651,9 @@ function TouringContent() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         <div className="max-w-sm w-full space-y-8">
 
-          {/* ═══ loading 模式 ═══ */}
-          {mode === 'loading' && (
-            <div className="text-center space-y-3 animate-fade-in-up">
+          {/* ═══ loading 模式（仅恢复时显示文字） ═══ */}
+          {mode === 'loading' && restoringText && (
+            <div className="text-center space-y-3">
               <p
                 className="text-xs text-muted-foreground/40 tracking-wider"
                 style={{ fontFamily: 'var(--font-serif)' }}
