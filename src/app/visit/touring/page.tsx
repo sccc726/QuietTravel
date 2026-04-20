@@ -539,8 +539,11 @@ function TouringContent() {
         const data = await res.json();
         const currentVisited: string[] = data.progress?.[destinationId]?.visitedPlaceIds ?? [];
 
-        // 添加当前已游览的地点
-        const updatedVisited = [...new Set([...currentVisited, placeId])];
+        // 只有游览完成时才加入已游览列表
+        const isCompleted = eventsRef.current.length >= totalEvents;
+        const updatedVisited = isCompleted
+          ? [...new Set([...currentVisited, placeId])]
+          : currentVisited;
 
         // 保存进度，并标记游览完成（而非清除 touringState）
         await fetch('/api/progress', {
@@ -561,7 +564,7 @@ function TouringContent() {
               intervalMs: intervalMsRef.current,
               hasImage: hasImageRef.current,
               totalPlaces,
-              completed: true,
+              completed: eventsRef.current.length >= totalEvents,
               events: eventsRef.current,
               lastSavedAt: Date.now(),
             },
