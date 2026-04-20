@@ -383,6 +383,7 @@ function TouringContent() {
         // 恢复 hasImage 状态
         if (state.hasImage) {
           setHasImage(true);
+          hasImageRef.current = true; // 立即同步更新，避免 fetchBatchEvents 读到旧值
         }
 
         // 先恢复已有事件
