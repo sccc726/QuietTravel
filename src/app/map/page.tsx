@@ -113,6 +113,17 @@ function MapPageContent() {
   // 各地点的游览状态（用于判断是否跳过确认页）
   const [touringStateMap, setTouringStateMap] = useState<Record<string, TouringStateSummary>>({});
 
+  // 获取地点状态标签
+  const getPlaceStatus = useCallback((placeId: string, destId: string): 'touring' | 'visited' | undefined => {
+    const ts = touringStateMap[placeId];
+    if (ts) return ts.completed ? 'visited' : 'touring';
+    // touringStateMap 可能已被清除（完成游览后），检查 visitedPlaceIds
+    const destSlug = destinationSlug(destId);
+    const visitedIds = visitedMap[destSlug]?.visitedPlaceIds ?? [];
+    if (visitedIds.includes(placeId)) return 'visited';
+    return undefined;
+  }, [touringStateMap, visitedMap]);
+
   // === 目的地列表 ===
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [destinationsLoaded, setDestinationsLoaded] = useState(false);
@@ -595,6 +606,7 @@ function MapPageContent() {
                           destinationId={selected.id}
                           destinationName={selected.name}
                           onClick={handlePlaceClick}
+                          status={getPlaceStatus(item.id, selected.id)}
                         />
                       ))}
                     </div>
@@ -630,6 +642,7 @@ function MapPageContent() {
                           destinationId={selected.id}
                           destinationName={selected.name}
                           onClick={handlePlaceClick}
+                          status={getPlaceStatus(item.id, selected.id)}
                         />
                       ))}
                     </div>
@@ -806,11 +819,13 @@ function PlaceCard({
   destinationId,
   destinationName,
   onClick,
+  status,
 }: {
   item: PlaceItem;
   destinationId: string;
   destinationName: string;
   onClick: (placeId: string, destinationId: string, destinationName: string, placeName: string) => void;
+  status?: 'touring' | 'visited';
 }) {
   const handleClick = () => {
     onClick(item.id, destinationId, destinationName, item.name);
@@ -831,6 +846,18 @@ function PlaceCard({
         {item.tag && (
           <span className="text-[9px] text-muted-foreground/35 border border-border/50 rounded px-1 py-px">
             {item.tag}
+          </span>
+        )}
+        {status === 'touring' && (
+          <span className="flex items-center gap-1 text-[9px] text-accent-green/70 ml-auto">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-green/60 animate-pulse" />
+            游览中
+          </span>
+        )}
+        {status === 'visited' && (
+          <span className="flex items-center gap-1 text-[9px] text-muted-foreground/40 ml-auto">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+            已去过
           </span>
         )}
       </div>
