@@ -2,6 +2,12 @@
 
 import { authHeaders } from './auth';
 
+/** 事件数据结构（与 touring page 一致） */
+interface EventData {
+  text: string;
+  imageUrl?: string;
+}
+
 /** 游览状态（与 touring page 的 TouringState 保持一致） */
 interface TouringState {
   destinationId: string;
@@ -13,26 +19,31 @@ interface TouringState {
   intervalMs: number;
   hasImage: boolean;
   totalPlaces: number;
+  completed: boolean;
+  events: EventData[];
   lastSavedAt: number;
 }
 
 /** 最大恢复时间（4小时），超过视为游览结束 */
 const MAX_RECOVERY_MS = 4 * 60 * 60 * 1000;
 
-/** 检查是否有活跃的游览状态，返回跳转 URL 或 null */
+/** 检查是否有活跃的游览状态（未完成），返回跳转 URL 或 null */
 export async function checkActiveTouring(): Promise<string | null> {
   try {
     const res = await fetch('/api/progress', { headers: authHeaders() });
     const data = await res.json();
     if (!data.progress) return null;
 
-    // 查找所有有活跃 touringState 的目的地，选最近保存的
+    // 查找所有有活跃（未完成）touringState 的目的地，选最近保存的
     let latestState: TouringState | null = null;
     let latestSlug = '';
 
     for (const [slug, info] of Object.entries(data.progress as Record<string, { touringState: TouringState | null }>)) {
       const state = info.touringState;
       if (!state || !state.destinationId || !state.placeId) continue;
+
+      // 已完成的游览不算活跃
+      if (state.completed) continue;
 
       // 检查是否过期（超过4小时）
       const elapsed = Date.now() - state.timerStartAt;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { getStoredAuth, authHeaders } from '@/lib/auth';
 
 /** 事件数据结构（含可选图片） */
@@ -22,6 +22,8 @@ interface TouringState {
   intervalMs: number;     // 当前倒计时间隔（ms）
   hasImage: boolean;      // 当前地点是否已生成过图片
   totalPlaces: number;    // 目的地总地点数（用于跳转URL参数）
+  completed: boolean;     // 游览是否已完成
+  events: EventData[];    // 已生成的事件列表
   lastSavedAt: number;    // 最后保存时间戳（ms）
 }
 
@@ -55,6 +57,9 @@ function TouringContent() {
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
   const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
 
+  // 页面模式：'loading' | 'active' | 'completed'
+  const [mode, setMode] = useState<'loading' | 'active' | 'completed'>('loading');
+
   // 事件状态
   const [events, setEvents] = useState<EventData[]>([]);
   const [pendingEvent, setPendingEvent] = useState<EventData | null>(null);
@@ -69,7 +74,6 @@ function TouringContent() {
   const [isWaiting, setIsWaiting] = useState(true);
 
   // 恢复状态
-  const [isRestoring, setIsRestoring] = useState(true);
   const [restoringText, setRestoringText] = useState('恢复游览进度...');
 
   // hasImage 跟踪（每个地点最多1张图）
@@ -95,6 +99,8 @@ function TouringContent() {
   totalEventsRef.current = totalEvents;
   const totalPlacesRef = useRef(totalPlaces);
   totalPlacesRef.current = totalPlaces;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   // 是否已初始化（防止重复执行）
   const initializedRef = useRef(false);
@@ -116,6 +122,8 @@ function TouringContent() {
       intervalMs: override?.intervalMs ?? intervalMsRef.current,
       hasImage: override?.hasImage ?? hasImageRef.current,
       totalPlaces: override?.totalPlaces ?? totalPlacesRef.current,
+      completed: override?.completed ?? modeRef.current === 'completed',
+      events: override?.events ?? eventsRef.current,
       lastSavedAt: Date.now(),
     };
 
@@ -286,7 +294,7 @@ function TouringContent() {
           setEvents(prev => {
             const next = [...prev, eventData];
             // 更新完成事件数后保存状态
-            saveTouringState({ completedEvents: next.length });
+            saveTouringState({ completedEvents: next.length, events: next });
             return next;
           });
         }
@@ -306,7 +314,7 @@ function TouringContent() {
       const auth = getStoredAuth();
       if (!auth) {
         // 未登录，正常初始化
-        setIsRestoring(false);
+        setMode('active');
         fetchNextEvent();
         startWaiting();
         return;
@@ -319,11 +327,20 @@ function TouringContent() {
 
         if (!state || state.placeId !== placeId || state.destinationId !== destinationId) {
           // 没有匹配的游览状态，正常初始化
-          setIsRestoring(false);
+          setMode('active');
           fetchNextEvent();
           startWaiting();
           return;
         }
+
+        // ─── 已完成的游览：显示"已来过"视图 ───
+        if (state.completed) {
+          setEvents(state.events ?? []);
+          setMode('completed');
+          return;
+        }
+
+        // ─── 进行中的游览：恢复 ───
 
         // 找到匹配的游览状态，计算恢复逻辑
         const elapsed = Date.now() - state.timerStartAt;
@@ -337,45 +354,42 @@ function TouringContent() {
           setHasImage(true);
         }
 
+        // 先恢复已有事件
+        if (state.events && state.events.length > 0) {
+          setEvents(state.events);
+        }
+
         if (elapsed > MAX_RECOVERY_MS || state.completedEvents + missedCount >= state.totalEvents) {
           // 时间太久或所有事件都已"完成"，直接结束游览
           setRestoringText('游览已结束，正在记录...');
           // 生成所有剩余事件（快速显示）
           const remainingCount = state.totalEvents - state.completedEvents;
+          let finalEvents = [...(state.events ?? [])];
           if (remainingCount > 0) {
             const batchEvents = await fetchBatchEvents(remainingCount);
-            // 快速显示每条事件
-            for (const evt of batchEvents) {
-              setEvents(prev => [...prev, evt]);
-            }
+            finalEvents = [...finalEvents, ...batchEvents];
           }
-          setIsRestoring(false);
-          // 标记游览结束
-          await clearTouringState();
+          setEvents(finalEvents);
+          setMode('completed');
+          // 保存完成状态
+          await saveTouringState({ completed: true, completedEvents: state.totalEvents, events: finalEvents });
           return;
         }
 
         if (missedCount > 0) {
-          // 有错过的事件，批量生成并逐条显示
+          // 有错过的事件，批量生成并逐条添加
           setRestoringText(`恢复中，生成${missedCount}条见闻...`);
           const batchEvents = await fetchBatchEvents(missedCount);
-          // 快速打字显示每条事件
-          for (let i = 0; i < batchEvents.length; i++) {
-            const evt = batchEvents[i];
-            setEvents(prev => [...prev, evt]);
-            // 简单延迟，不阻塞
-            if (i < batchEvents.length - 1) {
-              await new Promise(r => setTimeout(r, 800));
-            }
-          }
+          const restoredEvents = [...(state.events ?? []), ...batchEvents];
+          setEvents(restoredEvents);
         }
+
+        setMode('active');
 
         // 恢复剩余倒计时
         const nextIntervalStart = state.timerStartAt + missedCount * AVG_INTERVAL_MS;
         const timeSinceLastEvent = Date.now() - nextIntervalStart;
         const remainingInterval = Math.max(0, state.intervalMs - timeSinceLastEvent);
-
-        setIsRestoring(false);
 
         if (state.completedEvents + missedCount >= state.totalEvents) {
           // 所有事件已完成，不用再计时
@@ -407,19 +421,20 @@ function TouringContent() {
         });
       } catch {
         // 恢复失败，正常初始化
-        setIsRestoring(false);
+        setMode('active');
         fetchNextEvent();
         startWaiting();
       }
     };
 
     tryRestore();
-  }, [destinationId, placeId, destinationName, fetchNextEvent, startWaiting, fetchBatchEvents, saveTouringState, clearTouringState]);
+  }, [destinationId, placeId, destinationName, fetchNextEvent, startWaiting, fetchBatchEvents, saveTouringState]);
 
   // ─── 倒计时 ───────────────────────────────────────
 
   useEffect(() => {
-    if (!isWaiting || isRestoring) return;
+    if (mode !== 'active') return;
+    if (!isWaiting) return;
 
     const tick = setInterval(() => {
       const elapsed = Date.now() - timerStartRef.current;
@@ -440,12 +455,13 @@ function TouringContent() {
     }, 1000);
 
     return () => clearInterval(tick);
-  }, [isWaiting, isRestoring, showEvent]);
+  }, [isWaiting, mode, showEvent]);
 
-  // ─── 事件完毕后：继续下一个 ───────────────────────
+  // ─── 事件完毕后：继续下一个或标记完成 ──────────────
 
   useEffect(() => {
-    if (isTyping || isWaiting || allDone || isRestoring) return;
+    if (mode !== 'active') return;
+    if (isTyping || isWaiting || allDone) return;
 
     if (events.length < totalEvents) {
       const timer = setTimeout(() => {
@@ -454,19 +470,23 @@ function TouringContent() {
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [events.length, isTyping, isWaiting, allDone, isRestoring, totalEvents, fetchNextEvent, startWaiting]);
+
+    // 所有事件完成，标记游览结束
+    setMode('completed');
+    saveTouringState({ completed: true, completedEvents: events.length, events });
+  }, [events.length, isTyping, isWaiting, allDone, mode, totalEvents, fetchNextEvent, startWaiting, saveTouringState]);
 
   // ─── 定期保存状态（每 30 秒）─────────────────────
 
   useEffect(() => {
-    if (isRestoring) return;
+    if (mode !== 'active') return;
 
     const interval = setInterval(() => {
       saveTouringState();
     }, 30 * 1000);
 
     return () => clearInterval(interval);
-  }, [isRestoring, saveTouringState]);
+  }, [mode, saveTouringState]);
 
   // ─── 页面离开前保存状态 ──────────────────────────
 
@@ -484,6 +504,8 @@ function TouringContent() {
         intervalMs: intervalMsRef.current,
         hasImage: hasImageRef.current,
         totalPlaces: totalPlacesRef.current,
+        completed: modeRef.current === 'completed',
+        events: eventsRef.current,
         lastSavedAt: Date.now(),
       };
       // fetch + keepalive 可带自定义 header，替代 sendBeacon
@@ -516,7 +538,7 @@ function TouringContent() {
         // 添加当前已游览的地点
         const updatedVisited = [...new Set([...currentVisited, placeId])];
 
-        // 保存进度并清除游览状态
+        // 保存进度，并标记游览完成（而非清除 touringState）
         await fetch('/api/progress', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -524,7 +546,20 @@ function TouringContent() {
             destinationSlug: destinationId,
             visitedPlaceIds: updatedVisited,
             totalPlaces,
-            touringState: null, // 清除游览状态
+            touringState: {
+              destinationId,
+              destinationName,
+              placeId,
+              totalEvents,
+              completedEvents: eventsRef.current.length,
+              timerStartAt: timerStartRef.current,
+              intervalMs: intervalMsRef.current,
+              hasImage: hasImageRef.current,
+              totalPlaces,
+              completed: true,
+              events: eventsRef.current,
+              lastSavedAt: Date.now(),
+            },
           }),
         });
       } catch {
@@ -532,7 +567,29 @@ function TouringContent() {
       }
     }
     router.push('/map');
-  }, [destinationId, placeId, router, totalPlaces]);
+  }, [destinationId, destinationName, placeId, router, totalEvents, totalPlaces]);
+
+  // ─── 重新游览 ─────────────────────────────────────
+
+  const handleRestart = useCallback(async () => {
+    // 清除游览状态
+    await clearTouringState();
+    // 重置所有状态
+    setEvents([]);
+    setPendingEvent(null);
+    setDisplayedEvent('');
+    setIsTyping(false);
+    setShowingImage(undefined);
+    setIntervalMs(0);
+    setRemainingMs(0);
+    setShowStroll(false);
+    setIsWaiting(true);
+    setHasImage(false);
+    setMode('active');
+    // 开始新游览
+    fetchNextEvent();
+    startWaiting();
+  }, [clearTouringState, fetchNextEvent, startWaiting]);
 
   // ─── 交互处理 ─────────────────────────────────────
 
@@ -553,6 +610,8 @@ function TouringContent() {
 
   const progress = intervalMs > 0 ? ((intervalMs - remainingMs) / intervalMs) * 100 : 0;
 
+  // ─── 渲染 ─────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* 顶部 */}
@@ -568,7 +627,7 @@ function TouringContent() {
           className="text-sm font-light tracking-[0.08em] text-foreground/70"
           style={{ fontFamily: 'var(--font-serif)' }}
         >
-          游览中
+          {mode === 'completed' ? '游记' : '游览中'}
         </h1>
         <button
           onClick={toggleMute}
@@ -583,8 +642,8 @@ function TouringContent() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         <div className="max-w-sm w-full space-y-8">
 
-          {/* 恢复中提示 */}
-          {isRestoring && (
+          {/* ═══ loading 模式 ═══ */}
+          {mode === 'loading' && (
             <div className="text-center space-y-3 animate-fade-in-up">
               <p
                 className="text-xs text-muted-foreground/40 tracking-wider"
@@ -595,119 +654,168 @@ function TouringContent() {
             </div>
           )}
 
-          {/* 已完成事件列表 */}
-          {events.length > 0 && !isRestoring && (
-            <div className="space-y-3">
-              {events.map((ev, i) => (
-                <div key={i} className="space-y-2">
-                  {ev.imageUrl && (
-                    <div className="w-full rounded-lg overflow-hidden opacity-70">
+          {/* ═══ completed 模式：已来过视图 ═══ */}
+          {mode === 'completed' && (
+            <div className="space-y-8 animate-fade-in-up">
+              {/* 标题 */}
+              <div className="text-center space-y-2">
+                <p
+                  className="text-sm text-accent-green/70 tracking-wider"
+                  style={{ fontFamily: 'var(--font-serif)' }}
+                >
+                  你已经来过这里啦
+                </p>
+                <p
+                  className="text-xs text-muted-foreground/35 tracking-wider"
+                  style={{ fontFamily: 'var(--font-serif)' }}
+                >
+                  这是上次的游记
+                </p>
+              </div>
+
+              {/* 历史事件列表 */}
+              {events.length > 0 && (
+                <div className="space-y-3">
+                  {events.map((ev, i) => (
+                    <div key={i} className="space-y-2">
+                      {ev.imageUrl && (
+                        <div className="w-full rounded-lg overflow-hidden opacity-70">
+                          <img
+                            src={ev.imageUrl}
+                            alt=""
+                            className="w-full h-auto object-cover rounded-lg"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+                      <div
+                        className="text-sm text-muted-foreground/55 leading-relaxed pl-4 border-l-2 border-accent-green/20"
+                        style={{ fontFamily: 'var(--font-sans)' }}
+                      >
+                        {ev.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 底部按钮 */}
+              <div className="flex flex-col items-center gap-3 pt-4">
+                <button
+                  onClick={handleRestart}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-xs tracking-wider hover:bg-accent-green/18 transition-all duration-300"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重新游览
+                </button>
+                <button
+                  onClick={() => goBackToMap()}
+                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors duration-300 tracking-wider"
+                >
+                  返回地图
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ active 模式：游览中 ═══ */}
+          {mode === 'active' && (
+            <>
+              {/* 已完成事件列表 */}
+              {events.length > 0 && (
+                <div className="space-y-3">
+                  {events.map((ev, i) => (
+                    <div key={i} className="space-y-2">
+                      {ev.imageUrl && (
+                        <div className="w-full rounded-lg overflow-hidden opacity-70">
+                          <img
+                            src={ev.imageUrl}
+                            alt=""
+                            className="w-full h-auto object-cover rounded-lg"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+                      <div
+                        className="text-sm text-muted-foreground/55 leading-relaxed pl-4 border-l-2 border-accent-green/20"
+                        style={{ fontFamily: 'var(--font-sans)' }}
+                      >
+                        {ev.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 当前事件（打字机 + 图片淡入） */}
+              {isTyping && !isWaiting && (
+                <div className="space-y-2">
+                  {showingImage && (
+                    <div className="w-full rounded-lg overflow-hidden animate-fade-in-up">
                       <img
-                        src={ev.imageUrl}
+                        src={showingImage}
                         alt=""
                         className="w-full h-auto object-cover rounded-lg"
-                        loading="lazy"
                       />
                     </div>
                   )}
                   <div
-                    className="text-sm text-muted-foreground/55 leading-relaxed pl-4 border-l-2 border-accent-green/20"
+                    className="text-sm text-foreground/75 leading-relaxed pl-4 border-l-2 border-accent-green/40"
                     style={{ fontFamily: 'var(--font-sans)' }}
                   >
-                    {ev.text}
+                    {displayedEvent}
+                    <span className="inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 animate-blink" />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* 当前事件（打字机 + 图片淡入） */}
-          {isTyping && !isWaiting && !isRestoring && (
-            <div className="space-y-2">
-              {showingImage && (
-                <div className="w-full rounded-lg overflow-hidden animate-fade-in-up">
-                  <img
-                    src={showingImage}
-                    alt=""
-                    className="w-full h-auto object-cover rounded-lg"
-                  />
+              {/* 等待中状态 */}
+              {isWaiting && !allDone && (
+                <div className="text-center space-y-4 animate-fade-in-up">
+                  <p
+                    className="text-xs text-muted-foreground/35 tracking-wider"
+                    style={{ fontFamily: 'var(--font-serif)' }}
+                  >
+                    {pendingEvent?.imageUrl ? '摄影中...' : '漫步中...'}
+                  </p>
+
+                  {/* 进度条 */}
+                  <div className="w-full h-px bg-border/50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-accent-green/30 transition-all duration-1000 ease-linear rounded-full"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+
+                  <p className="text-xs text-muted-foreground/25 tracking-wider font-mono">
+                    {formatTime(remainingMs)}
+                  </p>
                 </div>
               )}
-              <div
-                className="text-sm text-foreground/75 leading-relaxed pl-4 border-l-2 border-accent-green/40"
-                style={{ fontFamily: 'var(--font-sans)' }}
-              >
-                {displayedEvent}
-                <span className="inline-block w-px h-[1em] align-middle bg-muted-foreground/40 ml-0.5 animate-blink" />
+
+              {/* 操作按钮区 */}
+              <div className="flex items-center justify-center gap-3">
+                {showStroll && isWaiting && (
+                  <button
+                    onClick={handleStroll}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-xs tracking-wider hover:bg-accent-green/18 transition-all duration-300 animate-fade-in-up"
+                  >
+                    <Footprints className="w-3.5 h-3.5" />
+                    随意逛逛
+                  </button>
+                )}
+
+                {isWaiting && !allDone && (
+                  <button
+                    onClick={handleFastForward}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground/40 text-[11px] tracking-wider hover:text-muted-foreground/60 hover:bg-muted/50 transition-all duration-300"
+                  >
+                    <FastForward className="w-3 h-3" />
+                    跳转时间
+                  </button>
+                )}
               </div>
-            </div>
-          )}
-
-          {/* 等待中状态 */}
-          {isWaiting && !allDone && !isRestoring && (
-            <div className="text-center space-y-4 animate-fade-in-up">
-              <p
-                className="text-xs text-muted-foreground/35 tracking-wider"
-                style={{ fontFamily: 'var(--font-serif)' }}
-              >
-                {pendingEvent?.imageUrl ? '摄影中...' : '漫步中...'}
-              </p>
-
-              {/* 进度条 */}
-              <div className="w-full h-px bg-border/50 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent-green/30 transition-all duration-1000 ease-linear rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-
-              <p className="text-xs text-muted-foreground/25 tracking-wider font-mono">
-                {formatTime(remainingMs)}
-              </p>
-            </div>
-          )}
-
-          {/* 全部完成 */}
-          {allDone && !isTyping && !isRestoring && (
-            <div className="text-center space-y-4 animate-fade-in-up">
-              <p
-                className="text-sm text-accent-green/70 tracking-wider"
-                style={{ fontFamily: 'var(--font-serif)' }}
-              >
-                此次游览结束
-              </p>
-              <button
-                onClick={() => goBackToMap()}
-                className="text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors duration-300 tracking-wider"
-              >
-                返回地图
-              </button>
-            </div>
-          )}
-
-          {/* 操作按钮区 */}
-          {!isRestoring && (
-            <div className="flex items-center justify-center gap-3">
-              {showStroll && isWaiting && (
-                <button
-                  onClick={handleStroll}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-xs tracking-wider hover:bg-accent-green/18 transition-all duration-300 animate-fade-in-up"
-                >
-                  <Footprints className="w-3.5 h-3.5" />
-                  随意逛逛
-                </button>
-              )}
-
-              {isWaiting && !allDone && (
-                <button
-                  onClick={handleFastForward}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground/40 text-[11px] tracking-wider hover:text-muted-foreground/60 hover:bg-muted/50 transition-all duration-300"
-                >
-                  <FastForward className="w-3 h-3" />
-                  跳转时间
-                </button>
-              )}
-            </div>
+            </>
           )}
         </div>
       </div>
