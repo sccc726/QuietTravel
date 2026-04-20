@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MapPin, AlertTriangle } from 'lucide-react';
+import { MapPin, AlertTriangle } from 'lucide-react';
 import type { PlaceType } from '@/lib/destinations';
 import { authHeaders } from '@/lib/auth';
 
@@ -73,15 +73,6 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
       <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
-        {/* 返回按钮 */}
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground/60 transition-colors duration-300 mx-auto"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span style={{ fontFamily: 'var(--font-serif)' }}>返回</span>
-        </button>
-
         {/* 地点标识 */}
         <div className="flex justify-center">
           <div className="w-14 h-14 rounded-full bg-accent/50 flex items-center justify-center">
@@ -123,7 +114,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
         {/* 操作按钮区域 */}
         {ongoingTour ? (
-          /* 有警告：返回为主按钮，确认出发为弱化小字 */
+          /* 有警告：返回为主按钮，仍要前往为弱化小字 */
           <div className="space-y-4">
             <button
               onClick={() => router.back()}
@@ -138,19 +129,28 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
               className="text-xs text-muted-foreground/35 hover:text-muted-foreground/55 transition-colors duration-300 disabled:opacity-30"
               style={{ fontFamily: 'var(--font-serif)' }}
             >
-              仍要前往，覆盖当前进度
+              仍要前往
             </button>
           </div>
         ) : (
-          /* 无警告：确认出发为主按钮 */
-          <button
-            onClick={handleDepart}
-            disabled={eventCount === null}
-            className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg disabled:opacity-40"
-            style={{ fontFamily: 'var(--font-serif)' }}
-          >
-            确认出发
-          </button>
+          /* 无警告：确认出发为主按钮，返回地图为弱化小字 */
+          <div className="space-y-4">
+            <button
+              onClick={handleDepart}
+              disabled={eventCount === null}
+              className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg disabled:opacity-40"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              确认出发
+            </button>
+            <button
+              onClick={() => router.back()}
+              className="text-xs text-muted-foreground/35 hover:text-muted-foreground/55 transition-colors duration-300"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              返回地图
+            </button>
+          </div>
         )}
       </div>
     </div>
