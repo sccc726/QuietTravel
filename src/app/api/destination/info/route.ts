@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. 先查缓存，命中则直接返回
-    const cached = getCachedInfo(destinationId);
+    const cached = await getCachedInfo(destinationId);
     if (cached) {
       return NextResponse.json({ info: cached, fromCache: true });
     }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     };
 
     // 4. 写入缓存
-    setCachedInfo(info);
+    await setCachedInfo(info, destinationName);
 
     return NextResponse.json({ info, fromCache: false });
   } catch (error) {

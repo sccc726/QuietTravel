@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. 先查缓存
-    const cached = getCachedAttractions(destinationId);
+    const cached = await getCachedAttractions(destinationId);
     if (cached) {
       return NextResponse.json({ data: cached, fromCache: true });
     }
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     const result = { id: destinationId, attractions };
 
     // 5. 写入缓存
-    setCachedAttractions(result);
+    await setCachedAttractions(result);
 
     return NextResponse.json({ data: result, fromCache: false });
   } catch (error) {

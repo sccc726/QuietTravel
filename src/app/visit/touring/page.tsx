@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX } from 'lucide-react';
+import { getStoredAuth, authHeaders } from '@/lib/auth';
 
 /** 事件数据结构（含可选图片） */
 interface EventData {
@@ -212,7 +213,36 @@ function TouringContent() {
     }
   }, [events.length, isTyping, isWaiting, allDone, totalEvents, fetchNextEvent, startWaiting]);
 
-  /** "随意逛逛" — 立即显示事件 */
+  /** 返回地图，同时保存游览进度到服务器 */
+  const goBackToMap = useCallback(async () => {
+    const auth = getStoredAuth();
+    if (auth) {
+      try {
+        // 先从服务器获取当前进度
+        const res = await fetch('/api/progress', {
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        const currentVisited: string[] = data.progress?.[destinationId]?.visitedPlaceIds ?? [];
+
+        // 添加当前已游览的地点
+        const updatedVisited = [...new Set([...currentVisited, placeId])];
+
+        // 保存回服务器
+        await fetch('/api/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({
+            destinationSlug: destinationId,
+            visitedPlaceIds: updatedVisited,
+          }),
+        });
+      } catch {
+        // 保存失败不阻塞返回
+      }
+    }
+    router.push('/map');
+  }, [destinationId, placeId, router]);
   const handleStroll = () => {
     const evt = pendingEventRef.current;
     if (evt) {
@@ -237,7 +267,7 @@ function TouringContent() {
       {/* 顶部 */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border/40 shrink-0">
         <button
-          onClick={() => router.push(`/map?visited=${encodeURIComponent(placeId)}`)}
+          onClick={() => goBackToMap()}
           className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground/60 transition-colors duration-300"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -345,7 +375,7 @@ function TouringContent() {
                 此次游览结束
               </p>
               <button
-                onClick={() => router.push(`/map?visited=${encodeURIComponent(placeId)}`)}
+                onClick={() => goBackToMap()}
                 className="text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors duration-300 tracking-wider"
               >
                 返回地图

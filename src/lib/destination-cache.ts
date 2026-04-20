@@ -1,65 +1,92 @@
-import fs from 'fs';
-import path from 'path';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 import type { DestinationInfo, DestinationAttractions, DestinationCheckins } from './destinations';
 
-/** 根据环境选择可写缓存目录：开发环境用项目 .cache，生产环境用 /tmp */
-const CACHE_DIR = process.env.COZE_PROJECT_ENV === 'PROD'
-  ? path.join('/tmp', 'cyber-voyage-cache')
-  : path.join(process.cwd(), '.cache');
-
-/** 缓存文件映射 */
-const CACHE_FILES = {
-  info: path.join(CACHE_DIR, 'destination-info.json'),
-  attractions: path.join(CACHE_DIR, 'destination-attractions.json'),
-  checkins: path.join(CACHE_DIR, 'destination-checkins.json'),
-} as const;
-
-type CacheKind = keyof typeof CACHE_FILES;
-
-/** 确保缓存目录存在 */
-function ensureCacheDir() {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-  }
+/** 获取 Supabase 客户端（服务端权限） */
+function getClient() {
+  return getSupabaseClient();
 }
 
-/** 通用缓存读取 */
-function readCache<T>(kind: CacheKind): Record<string, T> {
-  ensureCacheDir();
-  const file = CACHE_FILES[kind];
-  if (!fs.existsSync(file)) return {};
-  try {
-    const raw = fs.readFileSync(file, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
+/** 目的地关键词缓存 */
+export async function getCachedInfo(id: string): Promise<DestinationInfo | null> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('cache_info')
+    .select('info, destination_name')
+    .eq('destination_slug', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return { id, name: data.destination_name, ...data.info } as DestinationInfo;
 }
 
-/** 通用缓存写入 */
-function writeCache<T>(kind: CacheKind, data: Record<string, T>) {
-  ensureCacheDir();
-  fs.writeFileSync(CACHE_FILES[kind], JSON.stringify(data, null, 2), 'utf-8');
+export async function setCachedInfo(item: DestinationInfo, name?: string): Promise<void> {
+  const client = getClient();
+  const { error } = await client
+    .from('cache_info')
+    .upsert(
+      {
+        destination_slug: item.id,
+        destination_name: name ?? item.id,
+        info: { keywords: item.keywords, summary: item.summary, reviews: item.reviews },
+      },
+      { onConflict: 'destination_slug' }
+    );
+
+  if (error) throw new Error(`缓存 info 写入失败: ${error.message}`);
 }
 
-/** 通用：获取某条缓存 */
-function getCached<T>(kind: CacheKind, id: string): T | null {
-  const cache = readCache<T>(kind);
-  return cache[id] ?? null;
+/** 景点缓存 */
+export async function getCachedAttractions(id: string): Promise<DestinationAttractions | null> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('cache_attractions')
+    .select('attractions')
+    .eq('destination_slug', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return { id, attractions: data.attractions } as DestinationAttractions;
 }
 
-/** 通用：写入某条缓存 */
-function setCached<T extends { id: string }>(kind: CacheKind, item: T) {
-  const cache = readCache<T>(kind);
-  cache[item.id] = item;
-  writeCache(kind, cache);
+export async function setCachedAttractions(item: DestinationAttractions): Promise<void> {
+  const client = getClient();
+  const { error } = await client
+    .from('cache_attractions')
+    .upsert(
+      {
+        destination_slug: item.id,
+        attractions: item.attractions,
+      },
+      { onConflict: 'destination_slug' }
+    );
+
+  if (error) throw new Error(`缓存 attractions 写入失败: ${error.message}`);
 }
 
-export const getCachedInfo = (id: string) => getCached<DestinationInfo>('info', id);
-export const setCachedInfo = (item: DestinationInfo) => setCached('info', item);
+/** 打卡地缓存 */
+export async function getCachedCheckins(id: string): Promise<DestinationCheckins | null> {
+  const client = getClient();
+  const { data, error } = await client
+    .from('cache_checkins')
+    .select('checkins')
+    .eq('destination_slug', id)
+    .maybeSingle();
 
-export const getCachedAttractions = (id: string) => getCached<DestinationAttractions>('attractions', id);
-export const setCachedAttractions = (item: DestinationAttractions) => setCached('attractions', item);
+  if (error || !data) return null;
+  return { id, checkins: data.checkins } as DestinationCheckins;
+}
 
-export const getCachedCheckins = (id: string) => getCached<DestinationCheckins>('checkins', id);
-export const setCachedCheckins = (item: DestinationCheckins) => setCached('checkins', item);
+export async function setCachedCheckins(item: DestinationCheckins): Promise<void> {
+  const client = getClient();
+  const { error } = await client
+    .from('cache_checkins')
+    .upsert(
+      {
+        destination_slug: item.id,
+        checkins: item.checkins,
+      },
+      { onConflict: 'destination_slug' }
+    );
+
+  if (error) throw new Error(`缓存 checkins 写入失败: ${error.message}`);
+}

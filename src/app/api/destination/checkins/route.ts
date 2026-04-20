@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. 先查缓存
-    const cached = getCachedCheckins(destinationId);
+    const cached = await getCachedCheckins(destinationId);
     if (cached) {
       return NextResponse.json({ data: cached, fromCache: true });
     }
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     const result = { id: destinationId, checkins };
 
     // 5. 写入缓存
-    setCachedCheckins(result);
+    await setCachedCheckins(result);
 
     return NextResponse.json({ data: result, fromCache: false });
   } catch (error) {

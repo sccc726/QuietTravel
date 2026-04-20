@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 尝试获取缓存信息；如果没有则先用 LLM 生成一个简短概况
-    let cachedInfo = getCachedInfo(destinationId);
+    let cachedInfo = await getCachedInfo(destinationId);
     if (!cachedInfo && destinationName) {
       // 没有缓存，快速用 LLM 生成简要概况作为上下文（比 web-search 快得多）
       try {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
           reviews: [],
           summary: `${destinationName}旅游目的地`,
         };
-        setCachedInfo(cachedInfo);
+        await setCachedInfo(cachedInfo, destinationName);
       } catch {
         // 快速概况失败，不阻塞主流程
       }

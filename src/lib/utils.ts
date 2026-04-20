@@ -29,9 +29,8 @@ export function safeParseLLMJsonArray(raw: string): unknown[] | null {
     json = json.replace(/,\s*([}\]])/g, '$1');
 
     // 4. 单引号属性名/值 → 双引号（简易处理）
-    //    仅处理 key: 'value' 和 'key': 模式
-    json = json.replace(/'([^']*)'(\s*:)/g, '"$1"$2'); // key
-    json = json.replace(/:\s*'([^']*)'/g, ': "$1"');    // string value
+    json = json.replace(/'([^']*)'(\s*:)/g, '"$1"$2');
+    json = json.replace(/:\s*'([^']*)'/g, ': "$1"');
 
     // 5. 尝试解析
     const parsed = JSON.parse(json);
@@ -43,7 +42,7 @@ export function safeParseLLMJsonArray(raw: string): unknown[] | null {
     try {
       const match = raw.match(/\[[\s\S]*\]/);
       if (!match) return null;
-      let json = match[0];
+      const json = match[0];
 
       // 尝试从末尾逐步回退，找到最后一个完整的 }
       for (let i = json.length - 1; i >= 0; i--) {

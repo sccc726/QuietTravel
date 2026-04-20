@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
 import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
+import { getStoredAuth, authHeaders, clearAuth } from '@/lib/auth';
 
 /** 动态加载地图组件，禁用 SSR */
 const MapInner = dynamic(() => import('./components/map-inner'), {
@@ -81,7 +82,19 @@ interface ValidateResult {
 function MapPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const visitedPlaceId = searchParams.get('visited') ?? '';
+
+  // === 认证检查 ===
+  const authChecked = useRef(false);
+  useEffect(() => {
+    if (authChecked.current) return;
+    authChecked.current = true;
+    if (!getStoredAuth()) {
+      router.replace('/');
+    }
+  }, [router]);
+
+  // === 服务端进度（已游览地点） ===
+  const [visitedMap, setVisitedMap] = useState<Record<string, string[]>>({});
 
   // === 目的地列表 ===
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -115,13 +128,30 @@ function MapPageContent() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateResult | null>(null);
 
-  // === 初始化：从 sessionStorage 恢复 ===
+  // === 初始化：从 sessionStorage 恢复 + 从服务端加载进度 ===
   useEffect(() => {
     const savedDests = loadDestinations();
     if (savedDests.length > 0) {
       setDestinations(savedDests);
     }
     setDestinationsLoaded(true);
+
+    // 从服务端加载已游览进度
+    const auth = getStoredAuth();
+    if (auth) {
+      fetch('/api/progress', { headers: authHeaders() })
+        .then(res => res.json())
+        .then(data => {
+          if (data.progress) {
+            const map: Record<string, string[]> = {};
+            for (const [slug, info] of Object.entries(data.progress as Record<string, { visitedPlaceIds: string[] }>)) {
+              map[slug] = info.visitedPlaceIds;
+            }
+            setVisitedMap(map);
+          }
+        })
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -151,32 +181,30 @@ function MapPageContent() {
     let restoredAttrs = restoreDisplay(saved.displayAttractionIds, saved.allAttractions);
     let restoredCheckins = restoreDisplay(saved.displayCheckinIds, saved.allCheckins);
 
-    // 如果有 visited 参数，替换已游览地点
-    if (visitedPlaceId) {
-      const isCheckin = visitedPlaceId.includes('-checkin-');
-      const currentDisplay = isCheckin ? restoredCheckins : restoredAttrs;
-      const visitedIdx = currentDisplay.findIndex(p => p.id === visitedPlaceId);
-
-      if (visitedIdx !== -1) {
-        const currentIds = new Set(currentDisplay.map(p => p.id));
-        const pool = isCheckin ? saved.allCheckins : saved.allAttractions;
-        const candidates = pool.filter(p => !currentIds.has(p.id));
-
-        if (candidates.length > 0) {
-          const replacement = candidates[Math.floor(Math.random() * candidates.length)];
-          const newDisplay = [...currentDisplay];
-          newDisplay[visitedIdx] = replacement;
-          if (isCheckin) restoredCheckins = newDisplay;
-          else restoredAttrs = newDisplay;
-        }
-      }
+    // 替换已游览的地点（从服务端进度获取）
+    const savedDestId = saved.selectedId;
+    const visitedIds = savedDestId ? (visitedMap[savedDestId] ?? []) : [];
+    if (visitedIds.length > 0 && savedDestId) {
+      const replaceVisited = (display: PlaceItem[], pool: PlaceItem[]): PlaceItem[] => {
+        const currentIds = new Set(display.map(p => p.id));
+        const candidates = pool.filter(p => !currentIds.has(p.id) && !visitedIds.includes(p.id));
+        return display.map(item => {
+          if (visitedIds.includes(item.id) && candidates.length > 0) {
+            const replacement = candidates.shift()!;
+            return replacement;
+          }
+          return item;
+        });
+      };
+      restoredAttrs = replaceVisited(restoredAttrs, saved.allAttractions);
+      restoredCheckins = replaceVisited(restoredCheckins, saved.allCheckins);
     }
 
     setDisplayAttractions(restoredAttrs);
     setDisplayCheckins(restoredCheckins);
     clearMapState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinationsLoaded, visitedPlaceId]);
+  }, [destinationsLoaded, visitedMap]);
 
   // 持久化目的地列表
   useEffect(() => {
@@ -378,7 +406,13 @@ function MapPageContent() {
         >
           选择目的地
         </h1>
-        <div className="w-12" />
+        <button
+          onClick={() => { clearAuth(); router.replace('/'); }}
+          className="text-xs text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors duration-300"
+          style={{ fontFamily: 'var(--font-serif)' }}
+        >
+          退出
+        </button>
       </header>
 
       {/* 地图区域 */}

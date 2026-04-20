@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
 
     // 从缓存中查找当前地点的详细信息
     const isCheckin = placeId.includes('-checkin-');
-    const cachedData = isCheckin
+    const cachedData = await (isCheckin
       ? getCachedCheckins(destinationId)
-      : getCachedAttractions(destinationId);
+      : getCachedAttractions(destinationId));
 
     let placeInfo: { name: string; description: string; keywords: string[]; reviews: string[] } = {
       name: '',
