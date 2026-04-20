@@ -601,13 +601,16 @@ function TouringContent() {
 
         // 游览完成时，额外保存游记到 visit_journals 表
         if (isCompleted) {
+          // 尝试获取 placeName：URL 参数 > touring_state 中的值
+          const savedState = data.progress?.[destinationId]?.touringState;
+          const journalPlaceName = placeName || savedState?.placeName || '';
           fetch('/api/journals', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
               destinationSlug: destinationId,
               placeId,
-              placeName,
+              placeName: journalPlaceName,
               events: eventsRef.current,
               hasImage: hasImageRef.current,
             }),

@@ -438,11 +438,21 @@ function MapPageContent() {
         return;
       }
 
+      // 已去过但 touring_state 已被覆盖，直接跳游览页（从 journals 读取游记）
+      const destSlug = destinationSlug(destinationId);
+      const visitedIds = visitedMap[destSlug]?.visitedPlaceIds ?? [];
+      if (visitedIds.includes(placeId)) {
+        router.push(
+          `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=2&total=${total}${nameParam}${placeParam}`
+        );
+        return;
+      }
+
       // 全新地点，走确认页
       const totalParam = `&total=${total}`;
       router.push(`/visit/confirm/${destinationId}/${placeId}?${nameParam.slice(1)}${totalParam}${placeParam}`);
     },
-    [selected, aiDescription, allAttractions, allCheckins, router, touringStateMap]
+    [selected, aiDescription, allAttractions, allCheckins, router, touringStateMap, visitedMap]
   );
 
   // === 返回首页 ===
