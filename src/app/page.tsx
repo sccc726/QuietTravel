@@ -16,6 +16,7 @@ export default function CharacterCreatePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
   const [greeting, setGreeting] = useState('');
   const [displayedGreeting, setDisplayedGreeting] = useState('');
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -34,9 +35,9 @@ export default function CharacterCreatePage() {
     });
   }, [router]);
 
-  // 提交后请求 AI 问候语
+  // 提交后请求 AI 问候语（仅新用户）
   useEffect(() => {
-    if (!submitted) return;
+    if (!submitted || !isNewUser) return;
 
     const auth = getStoredAuth();
     const characterName = auth?.username ?? username;
@@ -104,6 +105,7 @@ export default function CharacterCreatePage() {
         username: data.player.username,
       });
 
+      setIsNewUser(data.mode === 'register');
       setIsSubmitting(false);
       setSubmitted(true);
     } catch {
@@ -116,6 +118,66 @@ export default function CharacterCreatePage() {
     const auth = getStoredAuth();
     const displayName = auth?.username ?? username;
 
+    // 老用户：欢迎回来，跳过 AI 问候语
+    if (!isNewUser) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center px-6">
+          <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
+            <div className="flex justify-center">
+              <div className="w-14 h-14 rounded-full bg-accent/60 flex items-center justify-center animate-float">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-accent-green"
+                >
+                  <path d="M12 2C8 7 4 9 4 13a8 8 0 0 0 16 0c0-4-4-6-8-11z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h2
+                className="text-xl font-light tracking-wider text-foreground/85"
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                {displayName}，欢迎回来
+              </h2>
+              <p
+                className="text-sm text-muted-foreground/60 leading-relaxed"
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                旅途还在继续
+              </p>
+            </div>
+
+            <Button
+              onClick={() => {
+                checkActiveTouring().then(url => {
+                  router.push(url || '/map');
+                });
+              }}
+              className="bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg px-8 h-11"
+            >
+              继续旅行
+            </Button>
+
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/40">
+              <span className="inline-block w-5 h-px bg-border" />
+              <span style={{ fontFamily: 'var(--font-serif)' }}>别处 · Elsewhere (Demo)</span>
+              <span className="inline-block w-5 h-px bg-border" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 新用户：AI 问候语 + 打字机效果
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6">
         <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
