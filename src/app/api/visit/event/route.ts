@@ -4,7 +4,7 @@ import { getCachedAttractions, getCachedCheckins } from '@/lib/destination-cache
 
 export async function POST(request: NextRequest) {
   try {
-    const { destinationId, destinationName, placeId, previousEvents } = await request.json();
+    const { destinationId, destinationName, placeId, previousEvents, hasImage } = await request.json();
 
     if (!destinationId || !placeId) {
       return NextResponse.json({ error: '参数缺失' }, { status: 400 });
@@ -79,9 +79,9 @@ export async function POST(request: NextRequest) {
 
     const eventText = response.content.trim();
 
-    // 70% 概率生成彩色水墨风格图片
+    // 30% 概率生成图片，且每个景点最多 1 张（hasImage 为 true 则跳过）
     let imageUrl: string | undefined;
-    if (Math.random() < 0.7) {
+    if (!hasImage && Math.random() < 0.3) {
       try {
         const imgClient = new ImageGenerationClient(config, customHeaders);
         const imgResponse = await imgClient.generate({

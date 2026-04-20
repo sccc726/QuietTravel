@@ -1,4 +1,4 @@
-# 赛博旅途 (Cyber Voyage) — 项目上下文
+# 别处 · Elsewhere (Demo) — 项目上下文
 
 ### 版本技术栈
 
@@ -8,24 +8,27 @@
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **Styling**: Tailwind CSS 4
 - **地图**: Leaflet + react-leaflet + 高德瓦片图层（无需 API Key）
-- **AI**: coze-coding-dev-sdk（doubao-seed-2-0-mini/lite + web-search）
+- **AI**: coze-coding-dev-sdk（doubao-seed-2-0-mini/lite + web-search + image-generation）
+- **数据库**: Supabase PostgreSQL（service_role_key 无 RLS 限制）
+- **认证**: 简单 token 认证（base64 + SHA-256 签名，30 天有效）
 
 ## 目录结构
 
 ```
-├── .cache/                                # 服务端缓存（destination-*.json）
-├── public/                                # 静态资源
+├── public/                                # 静态资源（含 touring-bgm.mp3）
 ├── scripts/                               # 构建与启动脚本
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx                       # 角色创建页（仅角色名）
+│   │   ├── page.tsx                       # 角色创建页（旅人名称+暗号）
 │   │   ├── map/
 │   │   │   ├── page.tsx                   # 目的地选择页（搜索+地图+双栏景点/打卡地）
-│   │   │   └── components/map-inner.tsx   # Leaflet 地图组件（SSR disabled，动态标记）
+│   │   │   └── components/map-inner.tsx   # Leaflet 地图组件（三色标记：橙/浅绿/灰）
 │   │   ├── visit/
 │   │   │   ├── confirm/[destinationId]/[placeId]/page.tsx  # 游览确认页
-│   │   │   └── touring/page.tsx           # 游览中页面（定时事件+随意逛逛）
+│   │   │   └── touring/page.tsx           # 游览中页面（定时事件+状态持久化+背景音乐）
 │   │   ├── api/
+│   │   │   ├── auth/route.ts              # 认证（注册/登录同一接口）
+│   │   │   ├── progress/route.ts          # 玩家进度（GET/POST/PATCH，含 touring_state）
 │   │   │   ├── greeting/route.ts          # AI 问候语
 │   │   │   ├── destination/
 │   │   │   │   ├── validate/route.ts      # AI 校准目的地尺度（web-search+LLM）
@@ -33,12 +36,20 @@
 │   │   │   │   ├── description/route.ts   # AI 生成目的地描述（~20字）
 │   │   │   │   ├── attractions/route.ts   # AI 搜索景点列表
 │   │   │   │   └── checkins/route.ts      # AI 搜索打卡地列表
-│   │   │   └── visit/event/route.ts       # AI 生成游览随机事件（50-100字）
+│   │   │   └── visit/
+│   │   │       ├── event/route.ts         # AI 生成游览随机事件（50-100字，30%配图）
+│   │   │       └── events-batch/route.ts  # 批量生成多条事件（恢复用，1次LLM调用）
 │   ├── components/ui/                     # Shadcn UI 组件库
 │   ├── lib/
 │   │   ├── destinations.ts                # 核心数据结构（Destination/PlaceItem/PlaceType）
-│   │   ├── destination-cache.ts           # 服务端 JSON 文件缓存
-│   │   └── utils.ts                       # 通用工具函数
+│   │   ├── destination-cache.ts           # Supabase 缓存（info/attractions/checkins）
+│   │   ├── auth.ts                        # 前端认证工具（localStorage token 管理）
+│   │   └── utils.ts                       # 通用工具（含 safeParseLLMJsonArray）
+│   ├── storage/database/
+│   │   ├── supabase-client.ts             # Supabase 客户端（service_role_key）
+│   │   └── shared/
+│   │       ├── schema.ts                  # Drizzle schema（5张表）
+│   │       └── relations.ts              # players ↔ player_progress 关系
 │   └── server.ts                          # 自定义服务端入口
 ├── globals.css                            # 全局样式（字体/Leaflet/动画）
 ├── next.config.ts
@@ -48,12 +59,13 @@
 
 ## 核心数据流
 
-1. **角色创建** → AI 生成问候语（打字机效果）→ 进入地图页
+1. **角色创建** → 输入旅人名称+暗号 → 注册/登录 → AI 问候语（打字机效果）→ 进入地图页
 2. **搜索目的地** → AI 校准尺度（valid/too_narrow/too_broad/not_found）→ 创建运行时目的地 → 地图飞到坐标
 3. **目的地选择** → 地图光点点击或搜索 → 并行获取 description/attractions/checkins → 双栏展示随机3条
 4. **点选地点** → 确认页（随机事件数：景点2~3/打卡地1~2）→ 确认出发
-5. **游览中** → 定时 AI 随机事件（20-60min 间隔）→ 随意逛逛按钮（80%后浮现）→ 跳转时间测试按钮
-6. **游览返回** → 恢复地图状态（sessionStorage）→ 已游览地点替换为新地点
+5. **游览中** → 定时 AI 随机事件（20-60min间隔，30%配图，每景点最多1图）→ 随意逛逛按钮 → 背景音乐
+6. **游览状态持久化** → 每30秒保存 touring_state 到服务端 → 页面刷新/关闭后可恢复 → 批量补生成错过事件
+7. **游览返回** → 恢复地图状态（sessionStorage）→ 已游览地点替换为新地点 → 进度同步服务端
 
 ## 目的地管理
 
@@ -70,12 +82,49 @@
 - not_found（巴黎/霍格沃茨）：境外或虚构地点
 - 所有目的地限定中国境内（坐标 18°-54°N, 73°-135°E）
 
+## 数据库表结构
+
+- `players(id, username, password, created_at)` — username UNIQUE
+- `player_progress(id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state)` — UNIQUE(player_id, destination_slug)
+- `cache_info(destination_slug PK, destination_name, info JSONB, created_at)`
+- `cache_attractions(destination_slug PK, attractions JSONB, created_at)`
+- `cache_checkins(destination_slug PK, checkins JSONB, created_at)`
+
 ## 缓存机制
 
-- `.cache/destination-info.json` — 目的地关键词（web-search 一次性）
-- `.cache/destination-attractions.json` — 景点列表（web-search + LLM 提取）
-- `.cache/destination-checkins.json` — 打卡地列表（web-search + LLM 提取）
+- info/attractions/checkins 缓存于 Supabase JSONB 列（通过 destination-cache.ts 读写）
 - 描述和事件每次重新生成，不缓存
+- `safeParseLLMJsonArray()` 容错解析（中文引号、尾部逗号、JS注释、单引号、截断JSON）
+
+## 认证系统
+
+- `POST /api/auth`：同一接口处理注册/登录（username 查找 → 有则验证密码，无则注册）
+- 密码 SHA-256 哈希 + 盐值（`elsewhere-salt:`）
+- Token: base64(`${playerId}:${timestamp}:${signature}`)，30天有效期
+- 前端 `lib/auth.ts` 管理 localStorage 中的 token
+
+## 地图标记状态
+
+- 橙色（默认）：未游览
+- 浅绿色：已游览至少1个地点
+- 灰色：所有地点已游览（无脉冲动画）
+- `MarkerState`：`unvisited` | `visited` | `completed`
+
+## 游览状态持久化
+
+- `touring_state` JSONB 列存储：`{ destinationId, destinationName, placeId, totalEvents, completedEvents, timerStartAt, intervalMs, hasImage, lastSavedAt }`
+- 每 30 秒自动保存（PATCH /api/progress）
+- 页面关闭前通过 `fetch + keepalive` 保存
+- 恢复逻辑：计算时间差 → 估算错过事件数（平均40min间隔）→ events-batch 批量生成 → 快速展示 → 继续正常倒计时
+- 超过 4 小时未恢复视为游览结束
+- 游览结束后清除 touring_state
+
+## 图片生成规范
+
+- 概率 30%，每个景点最多 1 张图片（`hasImage` 参数控制）
+- 英文摄影术语 prompt（muted pastel color grading, soft focus, no vintage effect）
+- 人物从背后/剪影处理，不显示正面
+- 倒计时文案：有图片时显示"摄影中..."，无图片时显示"漫步中..."
 
 ## 设计风格
 
@@ -120,6 +169,7 @@
 
 - `cyber-voyage-destinations` — 运行时目的地列表
 - `cyber-voyage-map-state` — 地图页面状态（选中目的地、展示列表等）
+- `elsewhere-auth` — 认证信息（token/playerId/username）
 - 离开地图页前保存，返回时恢复后清除
 
 ## 常用命令

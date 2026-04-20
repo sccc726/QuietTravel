@@ -11,6 +11,19 @@ interface EventData {
   imageUrl?: string;
 }
 
+/** 游览状态（持久化到服务端） */
+interface TouringState {
+  destinationId: string;
+  destinationName: string;
+  placeId: string;
+  totalEvents: number;
+  completedEvents: number;
+  timerStartAt: number;   // 当前倒计时起始时间戳（ms）
+  intervalMs: number;     // 当前倒计时间隔（ms）
+  hasImage: boolean;      // 当前地点是否已生成过图片
+  lastSavedAt: number;    // 最后保存时间戳（ms）
+}
+
 /** 生成随机间隔时间（20~60分钟，单位毫秒） */
 function randomInterval(): number {
   const minMs = 20 * 60 * 1000;
@@ -27,6 +40,11 @@ function formatTime(ms: number): string {
   return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
+/** 平均间隔（用于估算恢复时错过的事件数） */
+const AVG_INTERVAL_MS = 40 * 60 * 1000;
+/** 最大恢复时间（4小时），超过视为游览结束 */
+const MAX_RECOVERY_MS = 4 * 60 * 60 * 1000;
+
 function TouringContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,6 +52,7 @@ function TouringContent() {
   const destinationName = searchParams.get('name') ?? '';
   const placeId = searchParams.get('placeId') ?? '';
   const totalEvents = parseInt(searchParams.get('events') ?? '2', 10);
+  const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
 
   // 事件状态
   const [events, setEvents] = useState<EventData[]>([]);
@@ -48,15 +67,89 @@ function TouringContent() {
   const [showStroll, setShowStroll] = useState(false);
   const [isWaiting, setIsWaiting] = useState(true);
 
+  // 恢复状态
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [restoringText, setRestoringText] = useState('恢复游览进度...');
+
+  // hasImage 跟踪（每个地点最多1张图）
+  const [hasImage, setHasImage] = useState(false);
+
   // 事件是否全部完成
   const allDone = events.length >= totalEvents;
 
   // 背景音乐
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const totalPlaces = parseInt(searchParams.get('total') ?? '0', 10);
   const [muted, setMuted] = useState(false);
 
-  // 初始化并播放背景音乐
+  // 用 ref 跟踪最新值，避免闭包问题
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
+  const timerStartRef = useRef(0);
+  const intervalMsRef = useRef(0);
+  const pendingEventRef = useRef<EventData | null>(null);
+  pendingEventRef.current = pendingEvent;
+  const hasImageRef = useRef(false);
+  hasImageRef.current = hasImage;
+  const totalEventsRef = useRef(totalEvents);
+  totalEventsRef.current = totalEvents;
+
+  // 是否已初始化（防止重复执行）
+  const initializedRef = useRef(false);
+
+  // ─── 游览状态持久化 ───────────────────────────────
+
+  /** 保存游览状态到服务端 */
+  const saveTouringState = useCallback(async (override?: Partial<TouringState>) => {
+    const auth = getStoredAuth();
+    if (!auth) return;
+
+    const state: TouringState = {
+      destinationId,
+      destinationName,
+      placeId,
+      totalEvents,
+      completedEvents: override?.completedEvents ?? eventsRef.current.length,
+      timerStartAt: override?.timerStartAt ?? timerStartRef.current,
+      intervalMs: override?.intervalMs ?? intervalMsRef.current,
+      hasImage: override?.hasImage ?? hasImageRef.current,
+      lastSavedAt: Date.now(),
+    };
+
+    try {
+      await fetch('/api/progress', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          destinationSlug: destinationId,
+          touringState: state,
+        }),
+      });
+    } catch {
+      // 静默失败，不影响用户体验
+    }
+  }, [destinationId, destinationName, placeId, totalEvents]);
+
+  /** 清除服务端游览状态 */
+  const clearTouringState = useCallback(async () => {
+    const auth = getStoredAuth();
+    if (!auth) return;
+
+    try {
+      await fetch('/api/progress', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          destinationSlug: destinationId,
+          touringState: null,
+        }),
+      });
+    } catch {
+      // 静默失败
+    }
+  }, [destinationId]);
+
+  // ─── 背景音乐 ─────────────────────────────────────
+
   useEffect(() => {
     const audio = new Audio('/assets/touring-bgm.mp3');
     audio.loop = true;
@@ -64,7 +157,6 @@ function TouringContent() {
     audioRef.current = audio;
 
     audio.play().catch(() => {
-      // 浏览器自动播放限制，静音重试
       audio.muted = true;
       audio.play().then(() => {
         audio.muted = false;
@@ -79,7 +171,6 @@ function TouringContent() {
     };
   }, []);
 
-  // 静音切换
   const toggleMute = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -88,13 +179,7 @@ function TouringContent() {
     setMuted(next);
   }, [muted]);
 
-  // 用 ref 跟踪最新值，避免闭包问题
-  const eventsRef = useRef(events);
-  eventsRef.current = events;
-  const timerStartRef = useRef(0);
-  const intervalMsRef = useRef(0);
-  const pendingEventRef = useRef<EventData | null>(null);
-  pendingEventRef.current = pendingEvent;
+  // ─── 事件获取 ─────────────────────────────────────
 
   /** 请求下一个随机事件 */
   const fetchNextEvent = useCallback(async () => {
@@ -107,6 +192,7 @@ function TouringContent() {
           destinationName,
           placeId,
           previousEvents: eventsRef.current.map(e => e.text),
+          hasImage: hasImageRef.current,
         }),
       });
       const data = await res.json();
@@ -116,6 +202,10 @@ function TouringContent() {
           imageUrl: data.imageUrl || undefined,
         };
         setPendingEvent(eventData);
+        // 如果生成了图片，标记 hasImage
+        if (data.imageUrl) {
+          setHasImage(true);
+        }
       }
     } catch {
       setPendingEvent({
@@ -124,27 +214,57 @@ function TouringContent() {
     }
   }, [destinationId, destinationName, placeId]);
 
+  /** 批量获取事件（恢复用） */
+  const fetchBatchEvents = useCallback(async (count: number): Promise<EventData[]> => {
+    try {
+      const res = await fetch('/api/visit/events-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destinationId,
+          destinationName,
+          placeId,
+          count,
+          hasImage: hasImageRef.current,
+        }),
+      });
+      const data = await res.json();
+      if (data.events && Array.isArray(data.events)) {
+        return data.events.map((text: string) => ({ text }));
+      }
+    } catch {
+      // 降级
+    }
+    // 降级：返回默认事件
+    return Array.from({ length: count }, () => ({
+      text: '你沿着小路慢慢走着，光影从树叶间洒落，风里带着淡淡的花香。这一刻，什么都不用想。',
+    }));
+  }, [destinationId, destinationName, placeId]);
+
+  // ─── 计时控制 ─────────────────────────────────────
+
   /** 开始一段新的等待计时 */
-  const startWaiting = useCallback(() => {
-    const interval = randomInterval();
-    setIntervalMs(interval);
-    setRemainingMs(interval);
+  const startWaiting = useCallback((interval?: number) => {
+    const iv = interval ?? randomInterval();
+    setIntervalMs(iv);
+    setRemainingMs(iv);
     setShowStroll(false);
     setIsWaiting(true);
     timerStartRef.current = Date.now();
-    intervalMsRef.current = interval;
-  }, []);
+    intervalMsRef.current = iv;
+    // 保存状态
+    saveTouringState({ timerStartAt: Date.now(), intervalMs: iv });
+  }, [saveTouringState]);
 
-  /** 显示下个事件（打字机效果 + 图片淡入） */
+  /** 显示事件（打字机效果 + 图片淡入） */
   const showEvent = useCallback(
-    (eventData: EventData) => {
+    (eventData: EventData, typingSpeed = 50) => {
       setIsWaiting(false);
       setShowStroll(false);
       setIsTyping(true);
       setDisplayedEvent('');
       setShowingImage(undefined);
 
-      // 图片延迟淡入（在打字机开始后一小段时间）
       if (eventData.imageUrl) {
         setTimeout(() => {
           setShowingImage(eventData.imageUrl);
@@ -159,35 +279,153 @@ function TouringContent() {
           clearInterval(timer);
           setIsTyping(false);
           setPendingEvent(null);
-          setEvents(prev => [...prev, eventData]);
+          setEvents(prev => {
+            const next = [...prev, eventData];
+            // 更新完成事件数后保存状态
+            saveTouringState({ completedEvents: next.length });
+            return next;
+          });
         }
-      }, 50);
+      }, typingSpeed);
     },
-    []
+    [saveTouringState]
   );
 
-  // 初始化：获取第一个事件
-  useEffect(() => {
-    if (!destinationId || !placeId) return;
-    fetchNextEvent();
-    startWaiting();
-  }, [destinationId, placeId, fetchNextEvent, startWaiting]);
+  // ─── 初始化：尝试恢复游览状态 ─────────────────────
 
-  // 倒计时
   useEffect(() => {
-    if (!isWaiting) return;
+    if (initializedRef.current) return;
+    if (!destinationId || !placeId) return;
+    initializedRef.current = true;
+
+    const tryRestore = async () => {
+      const auth = getStoredAuth();
+      if (!auth) {
+        // 未登录，正常初始化
+        setIsRestoring(false);
+        fetchNextEvent();
+        startWaiting();
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/progress', { headers: authHeaders() });
+        const data = await res.json();
+        const state: TouringState | null = data.progress?.[destinationId]?.touringState ?? null;
+
+        if (!state || state.placeId !== placeId || state.destinationId !== destinationId) {
+          // 没有匹配的游览状态，正常初始化
+          setIsRestoring(false);
+          fetchNextEvent();
+          startWaiting();
+          return;
+        }
+
+        // 找到匹配的游览状态，计算恢复逻辑
+        const elapsed = Date.now() - state.timerStartAt;
+        const missedCount = Math.min(
+          Math.floor(elapsed / AVG_INTERVAL_MS),
+          state.totalEvents - state.completedEvents
+        );
+
+        // 恢复 hasImage 状态
+        if (state.hasImage) {
+          setHasImage(true);
+        }
+
+        if (elapsed > MAX_RECOVERY_MS || state.completedEvents + missedCount >= state.totalEvents) {
+          // 时间太久或所有事件都已"完成"，直接结束游览
+          setRestoringText('游览已结束，正在记录...');
+          // 生成所有剩余事件（快速显示）
+          const remainingCount = state.totalEvents - state.completedEvents;
+          if (remainingCount > 0) {
+            const batchEvents = await fetchBatchEvents(remainingCount);
+            // 快速显示每条事件
+            for (const evt of batchEvents) {
+              setEvents(prev => [...prev, evt]);
+            }
+          }
+          setIsRestoring(false);
+          // 标记游览结束
+          await clearTouringState();
+          return;
+        }
+
+        if (missedCount > 0) {
+          // 有错过的事件，批量生成并逐条显示
+          setRestoringText(`恢复中，生成${missedCount}条见闻...`);
+          const batchEvents = await fetchBatchEvents(missedCount);
+          // 快速打字显示每条事件
+          for (let i = 0; i < batchEvents.length; i++) {
+            const evt = batchEvents[i];
+            setEvents(prev => [...prev, evt]);
+            // 简单延迟，不阻塞
+            if (i < batchEvents.length - 1) {
+              await new Promise(r => setTimeout(r, 800));
+            }
+          }
+        }
+
+        // 恢复剩余倒计时
+        const nextIntervalStart = state.timerStartAt + missedCount * AVG_INTERVAL_MS;
+        const timeSinceLastEvent = Date.now() - nextIntervalStart;
+        const remainingInterval = Math.max(0, state.intervalMs - timeSinceLastEvent);
+
+        setIsRestoring(false);
+
+        if (state.completedEvents + missedCount >= state.totalEvents) {
+          // 所有事件已完成，不用再计时
+          return;
+        }
+
+        // 还有事件要生成，开始倒计时
+        if (remainingInterval <= 0) {
+          // 倒计时已结束，立即触发下一个事件
+          fetchNextEvent();
+          startWaiting();
+        } else {
+          // 从剩余时间继续倒计时
+          setIntervalMs(state.intervalMs);
+          setRemainingMs(remainingInterval);
+          setShowStroll(remainingInterval <= state.intervalMs * 0.2);
+          setIsWaiting(true);
+          timerStartRef.current = Date.now() - (state.intervalMs - remainingInterval);
+          intervalMsRef.current = state.intervalMs;
+          // 预加载下一个事件
+          fetchNextEvent();
+        }
+
+        // 保存恢复后的状态
+        await saveTouringState({
+          completedEvents: state.completedEvents + missedCount,
+          timerStartAt: timerStartRef.current,
+          intervalMs: intervalMsRef.current,
+        });
+      } catch {
+        // 恢复失败，正常初始化
+        setIsRestoring(false);
+        fetchNextEvent();
+        startWaiting();
+      }
+    };
+
+    tryRestore();
+  }, [destinationId, placeId, destinationName, fetchNextEvent, startWaiting, fetchBatchEvents, saveTouringState, clearTouringState]);
+
+  // ─── 倒计时 ───────────────────────────────────────
+
+  useEffect(() => {
+    if (!isWaiting || isRestoring) return;
 
     const tick = setInterval(() => {
       const elapsed = Date.now() - timerStartRef.current;
       const remaining = intervalMsRef.current - elapsed;
       setRemainingMs(Math.max(0, remaining));
 
-      // 剩余 20% 时显示"随意逛逛"
       if (remaining <= intervalMsRef.current * 0.2 && remaining > 0) {
         setShowStroll(true);
       }
 
-      // 时间到，触发事件
       if (remaining <= 0) {
         clearInterval(tick);
         const evt = pendingEventRef.current;
@@ -198,38 +436,82 @@ function TouringContent() {
     }, 1000);
 
     return () => clearInterval(tick);
-  }, [isWaiting, showEvent]);
+  }, [isWaiting, isRestoring, showEvent]);
 
-  // 事件显示完毕后：如果还有下一个，开始新计时
+  // ─── 事件完毕后：继续下一个 ───────────────────────
+
   useEffect(() => {
-    if (isTyping || isWaiting || allDone) return;
+    if (isTyping || isWaiting || allDone || isRestoring) return;
 
     if (events.length < totalEvents) {
-      // 还需更多事件
       const timer = setTimeout(() => {
         fetchNextEvent();
         startWaiting();
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [events.length, isTyping, isWaiting, allDone, totalEvents, fetchNextEvent, startWaiting]);
+  }, [events.length, isTyping, isWaiting, allDone, isRestoring, totalEvents, fetchNextEvent, startWaiting]);
 
-  /** 返回地图，同时保存游览进度到服务器 */
+  // ─── 定期保存状态（每 30 秒）─────────────────────
+
+  useEffect(() => {
+    if (isRestoring) return;
+
+    const interval = setInterval(() => {
+      saveTouringState();
+    }, 30 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isRestoring, saveTouringState]);
+
+  // ─── 页面离开前保存状态 ──────────────────────────
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const auth = getStoredAuth();
+      if (!auth) return;
+      const state: TouringState = {
+        destinationId,
+        destinationName,
+        placeId,
+        totalEvents,
+        completedEvents: eventsRef.current.length,
+        timerStartAt: timerStartRef.current,
+        intervalMs: intervalMsRef.current,
+        hasImage: hasImageRef.current,
+        lastSavedAt: Date.now(),
+      };
+      // fetch + keepalive 可带自定义 header，替代 sendBeacon
+      fetch('/api/progress', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          destinationSlug: destinationId,
+          touringState: state,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [destinationId, destinationName, placeId, totalEvents]);
+
+  // ─── 返回地图 ─────────────────────────────────────
+
   const goBackToMap = useCallback(async () => {
     const auth = getStoredAuth();
     if (auth) {
       try {
-        // 先从服务器获取当前进度
-        const res = await fetch('/api/progress', {
-          headers: authHeaders(),
-        });
+        // 获取当前进度
+        const res = await fetch('/api/progress', { headers: authHeaders() });
         const data = await res.json();
         const currentVisited: string[] = data.progress?.[destinationId]?.visitedPlaceIds ?? [];
 
         // 添加当前已游览的地点
         const updatedVisited = [...new Set([...currentVisited, placeId])];
 
-        // 保存回服务器
+        // 保存进度并清除游览状态
         await fetch('/api/progress', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -237,6 +519,7 @@ function TouringContent() {
             destinationSlug: destinationId,
             visitedPlaceIds: updatedVisited,
             totalPlaces,
+            touringState: null, // 清除游览状态
           }),
         });
       } catch {
@@ -244,7 +527,10 @@ function TouringContent() {
       }
     }
     router.push('/map');
-  }, [destinationId, placeId, router]);
+  }, [destinationId, placeId, router, totalPlaces]);
+
+  // ─── 交互处理 ─────────────────────────────────────
+
   const handleStroll = () => {
     const evt = pendingEventRef.current;
     if (evt) {
@@ -252,14 +538,12 @@ function TouringContent() {
     }
   };
 
-  /** 测试用：跳转时间到间隔的 85% 处（即剩余 15%） */
   const handleFastForward = () => {
     const targetElapsed = intervalMsRef.current * 0.85;
     timerStartRef.current = Date.now() - targetElapsed;
-    intervalMsRef.current = intervalMsRef.current; // 保持不变
     const newRemaining = intervalMsRef.current - targetElapsed;
     setRemainingMs(newRemaining);
-    setShowStroll(true); // 15% < 20%，触发显示
+    setShowStroll(true);
   };
 
   const progress = intervalMs > 0 ? ((intervalMs - remainingMs) / intervalMs) * 100 : 0;
@@ -293,8 +577,21 @@ function TouringContent() {
       {/* 主内容 */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         <div className="max-w-sm w-full space-y-8">
+
+          {/* 恢复中提示 */}
+          {isRestoring && (
+            <div className="text-center space-y-3 animate-fade-in-up">
+              <p
+                className="text-xs text-muted-foreground/40 tracking-wider"
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                {restoringText}
+              </p>
+            </div>
+          )}
+
           {/* 已完成事件列表 */}
-          {events.length > 0 && (
+          {events.length > 0 && !isRestoring && (
             <div className="space-y-3">
               {events.map((ev, i) => (
                 <div key={i} className="space-y-2">
@@ -320,7 +617,7 @@ function TouringContent() {
           )}
 
           {/* 当前事件（打字机 + 图片淡入） */}
-          {isTyping && !isWaiting && (
+          {isTyping && !isWaiting && !isRestoring && (
             <div className="space-y-2">
               {showingImage && (
                 <div className="w-full rounded-lg overflow-hidden animate-fade-in-up">
@@ -342,7 +639,7 @@ function TouringContent() {
           )}
 
           {/* 等待中状态 */}
-          {isWaiting && !allDone && (
+          {isWaiting && !allDone && !isRestoring && (
             <div className="text-center space-y-4 animate-fade-in-up">
               <p
                 className="text-xs text-muted-foreground/35 tracking-wider"
@@ -359,16 +656,14 @@ function TouringContent() {
                 />
               </div>
 
-              <p
-                className="text-xs text-muted-foreground/25 tracking-wider font-mono"
-              >
+              <p className="text-xs text-muted-foreground/25 tracking-wider font-mono">
                 {formatTime(remainingMs)}
               </p>
             </div>
           )}
 
           {/* 全部完成 */}
-          {allDone && !isTyping && (
+          {allDone && !isTyping && !isRestoring && (
             <div className="text-center space-y-4 animate-fade-in-up">
               <p
                 className="text-sm text-accent-green/70 tracking-wider"
@@ -386,29 +681,29 @@ function TouringContent() {
           )}
 
           {/* 操作按钮区 */}
-          <div className="flex items-center justify-center gap-3">
-            {/* 随意逛逛 */}
-            {showStroll && isWaiting && (
-              <button
-                onClick={handleStroll}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-xs tracking-wider hover:bg-accent-green/18 transition-all duration-300 animate-fade-in-up"
-              >
-                <Footprints className="w-3.5 h-3.5" />
-                随意逛逛
-              </button>
-            )}
+          {!isRestoring && (
+            <div className="flex items-center justify-center gap-3">
+              {showStroll && isWaiting && (
+                <button
+                  onClick={handleStroll}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-xs tracking-wider hover:bg-accent-green/18 transition-all duration-300 animate-fade-in-up"
+                >
+                  <Footprints className="w-3.5 h-3.5" />
+                  随意逛逛
+                </button>
+              )}
 
-            {/* 测试用：跳转时间 */}
-            {isWaiting && !allDone && (
-              <button
-                onClick={handleFastForward}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground/40 text-[11px] tracking-wider hover:text-muted-foreground/60 hover:bg-muted/50 transition-all duration-300"
-              >
-                <FastForward className="w-3 h-3" />
-                跳转时间
-              </button>
-            )}
-          </div>
+              {isWaiting && !allDone && (
+                <button
+                  onClick={handleFastForward}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/30 border border-border/30 text-muted-foreground/40 text-[11px] tracking-wider hover:text-muted-foreground/60 hover:bg-muted/50 transition-all duration-300"
+                >
+                  <FastForward className="w-3 h-3" />
+                  跳转时间
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
