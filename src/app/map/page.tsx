@@ -854,16 +854,6 @@ function PlaceCard({
             {item.tag}
           </span>
         )}
-        {status === 'touring' && (
-          <span className="text-[9px] text-accent-green/70 ml-auto">
-            游览中
-          </span>
-        )}
-        {status === 'visited' && (
-          <span className="text-[9px] text-muted-foreground/40 ml-auto">
-            已去过
-          </span>
-        )}
       </div>
       <p className="text-[11px] text-muted-foreground/45 leading-relaxed">{item.description}</p>
     </div>
