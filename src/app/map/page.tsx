@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
 import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
 import { getStoredAuth, authHeaders, clearAuth } from '@/lib/auth';
+import { checkActiveTouring } from '@/lib/touring-resume';
 
 /** 动态加载地图组件，禁用 SSR */
 const MapInner = dynamic(() => import('./components/map-inner'), {
@@ -88,13 +89,32 @@ function MapPageContent() {
   useEffect(() => {
     if (authChecked.current) return;
     authChecked.current = true;
-    if (!getStoredAuth()) {
+    const auth = getStoredAuth();
+    if (!auth) {
       router.replace('/');
+    } else {
+      setDisplayName(auth.username);
     }
+  }, [router]);
+
+  // === 检查是否有活跃游览（需跳转回游览页） ===
+  const touringChecked = useRef(false);
+  useEffect(() => {
+    if (touringChecked.current) return;
+    touringChecked.current = true;
+    const auth = getStoredAuth();
+    if (!auth) return;
+
+    checkActiveTouring().then(url => {
+      if (url) {
+        router.replace(url);
+      }
+    });
   }, [router]);
 
   // === 服务端进度（已游览地点） ===
   const [visitedMap, setVisitedMap] = useState<Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>>({});
+  const [displayName, setDisplayName] = useState('');
 
   // === 目的地列表 ===
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -412,7 +432,7 @@ function MapPageContent() {
             className="text-xs text-muted-foreground/50 tracking-wider"
             style={{ fontFamily: 'var(--font-serif)' }}
           >
-            {getStoredAuth()?.username ?? ''}
+            {displayName}
           </span>
           <button
             onClick={() => { clearAuth(); router.replace('/'); }}

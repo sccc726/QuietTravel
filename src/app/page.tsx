@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { getStoredAuth, storeAuth } from '@/lib/auth';
+import { checkActiveTouring } from '@/lib/touring-resume';
 
 export default function CharacterCreatePage() {
   const router = useRouter();
@@ -19,12 +20,18 @@ export default function CharacterCreatePage() {
   const [displayedGreeting, setDisplayedGreeting] = useState('');
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 已登录则直接跳转
+  // 已登录则检查是否有活跃游览，有则跳转游览页，否则跳转地图
   useEffect(() => {
     const auth = getStoredAuth();
-    if (auth) {
-      router.replace('/map');
-    }
+    if (!auth) return;
+
+    checkActiveTouring().then(url => {
+      if (url) {
+        router.replace(url);
+      } else {
+        router.replace('/map');
+      }
+    });
   }, [router]);
 
   // 提交后请求 AI 问候语
@@ -146,7 +153,11 @@ export default function CharacterCreatePage() {
           </div>
 
           <Button
-            onClick={() => router.push('/map')}
+            onClick={() => {
+              checkActiveTouring().then(url => {
+                router.push(url || '/map');
+              });
+            }}
             className="bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg px-8 h-11"
           >
             选择目的地

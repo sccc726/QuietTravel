@@ -21,6 +21,7 @@ interface TouringState {
   timerStartAt: number;   // 当前倒计时起始时间戳（ms）
   intervalMs: number;     // 当前倒计时间隔（ms）
   hasImage: boolean;      // 当前地点是否已生成过图片
+  totalPlaces: number;    // 目的地总地点数（用于跳转URL参数）
   lastSavedAt: number;    // 最后保存时间戳（ms）
 }
 
@@ -92,6 +93,8 @@ function TouringContent() {
   hasImageRef.current = hasImage;
   const totalEventsRef = useRef(totalEvents);
   totalEventsRef.current = totalEvents;
+  const totalPlacesRef = useRef(totalPlaces);
+  totalPlacesRef.current = totalPlaces;
 
   // 是否已初始化（防止重复执行）
   const initializedRef = useRef(false);
@@ -112,6 +115,7 @@ function TouringContent() {
       timerStartAt: override?.timerStartAt ?? timerStartRef.current,
       intervalMs: override?.intervalMs ?? intervalMsRef.current,
       hasImage: override?.hasImage ?? hasImageRef.current,
+      totalPlaces: override?.totalPlaces ?? totalPlacesRef.current,
       lastSavedAt: Date.now(),
     };
 
@@ -479,6 +483,7 @@ function TouringContent() {
         timerStartAt: timerStartRef.current,
         intervalMs: intervalMsRef.current,
         hasImage: hasImageRef.current,
+        totalPlaces: totalPlacesRef.current,
         lastSavedAt: Date.now(),
       };
       // fetch + keepalive 可带自定义 header，替代 sendBeacon
