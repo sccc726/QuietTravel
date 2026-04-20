@@ -106,6 +106,7 @@ function TouringContent() {
 
   // 是否已初始化（防止重复执行）
   const initializedRef = useRef(false);
+  const placeNameRef = useRef(placeName);
 
   // ─── 游览状态持久化 ───────────────────────────────
 
@@ -360,6 +361,7 @@ function TouringContent() {
         // ─── 已完成的游览：显示"已来过"视图 ───
         if (state.completed) {
           setEvents(state.events ?? []);
+          if (state.placeName) placeNameRef.current = state.placeName;
           setMode('completed');
           return;
         }
@@ -369,7 +371,12 @@ function TouringContent() {
         // 补全 placeName（历史数据可能为空），触发一次保存
         if (!state.placeName && placeName) {
           state.placeName = placeName;
+          placeNameRef.current = placeName;
           saveTouringState();
+        }
+        // 确保 ref 有值（从 touring_state 或 URL 获取）
+        if (state.placeName && !placeNameRef.current) {
+          placeNameRef.current = state.placeName;
         }
 
         // 找到匹配的游览状态，计算恢复逻辑
@@ -412,7 +419,7 @@ function TouringContent() {
             body: JSON.stringify({
               destinationSlug: destinationId,
               placeId: state.placeId,
-              placeName: state.placeName || placeName,
+              placeName: state.placeName || placeNameRef.current || placeName,
               events: finalEvents,
               hasImage: state.hasImage ?? false,
             }),
@@ -521,13 +528,14 @@ function TouringContent() {
     // 保存游记到 visit_journals 表（仅在完成瞬间写入一次）
     const auth = getStoredAuth();
     if (auth) {
+      const journalPlaceName = placeNameRef.current || placeName;
       fetch('/api/journals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           destinationSlug: destinationId,
           placeId,
-          placeName,
+          placeName: journalPlaceName,
           events,
           hasImage: hasImageRef.current,
         }),

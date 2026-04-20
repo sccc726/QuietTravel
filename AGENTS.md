@@ -29,6 +29,7 @@
 │   │   ├── api/
 │   │   │   ├── auth/route.ts              # 认证（注册/登录同一接口）
 │   │   │   ├── progress/route.ts          # 玩家进度（GET/POST/PATCH，含 touring_state）
+│   │   │   ├── journals/route.ts          # 游记归档（GET/POST，visit_journals 表）
 │   │   │   ├── greeting/route.ts          # AI 问候语
 │   │   │   ├── destination/
 │   │   │   │   ├── validate/route.ts      # AI 校准目的地尺度（web-search+LLM）
@@ -87,6 +88,7 @@
 
 - `players(id, username, password, created_at)` — username UNIQUE
 - `player_progress(id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state)` — UNIQUE(player_id, destination_slug)
+- `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
 - `cache_info(destination_slug PK, destination_name, info JSONB, created_at)`
 - `cache_attractions(destination_slug PK, attractions JSONB, created_at)`
 - `cache_checkins(destination_slug PK, checkins JSONB, created_at)`
