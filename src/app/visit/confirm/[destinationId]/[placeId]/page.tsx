@@ -19,7 +19,10 @@ interface ConfirmPageProps {
 }
 
 export default function VisitConfirmPage({ params }: ConfirmPageProps) {
-  const { destinationId, placeId } = use(params);
+  const routeParams = use(params);
+  // Next.js 动态路由参数可能不会自动解码中文，需要手动 decodeURIComponent
+  const destinationId = decodeURIComponent(routeParams.destinationId);
+  const placeId = decodeURIComponent(routeParams.placeId);
   const router = useRouter();
   const searchParams = useSearchParams();
   const destinationName = searchParams.get('name') ?? '';
