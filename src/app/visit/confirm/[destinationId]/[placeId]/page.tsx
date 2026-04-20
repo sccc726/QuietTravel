@@ -121,15 +121,37 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
           </div>
         )}
 
-        {/* 出发按钮 */}
-        <button
-          onClick={handleDepart}
-          disabled={eventCount === null}
-          className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg disabled:opacity-40"
-          style={{ fontFamily: 'var(--font-serif)' }}
-        >
-          确认出发
-        </button>
+        {/* 操作按钮区域 */}
+        {ongoingTour ? (
+          /* 有警告：返回为主按钮，确认出发为弱化小字 */
+          <div className="space-y-4">
+            <button
+              onClick={() => router.back()}
+              className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              返回
+            </button>
+            <button
+              onClick={handleDepart}
+              disabled={eventCount === null}
+              className="text-xs text-muted-foreground/35 hover:text-muted-foreground/55 transition-colors duration-300 disabled:opacity-30"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              仍要前往，覆盖当前进度
+            </button>
+          </div>
+        ) : (
+          /* 无警告：确认出发为主按钮 */
+          <button
+            onClick={handleDepart}
+            disabled={eventCount === null}
+            className="w-full h-11 bg-accent-green/10 border border-accent-green/20 text-accent-green hover:bg-accent-green/18 hover:border-accent-green/35 transition-all duration-500 text-sm tracking-[0.08em] rounded-lg disabled:opacity-40"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            确认出发
+          </button>
+        )}
       </div>
     </div>
   );
