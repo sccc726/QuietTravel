@@ -837,6 +837,12 @@ function PlaceCard({
       className="px-3 py-2.5 rounded-lg border border-border/40 bg-card/50 hover:bg-accent/30 hover:border-accent-green/15 transition-all duration-300 group cursor-pointer"
     >
       <div className="flex items-center gap-1.5 mb-1">
+        {status === 'touring' && (
+          <span className="w-1.5 h-1.5 rounded-full bg-accent-green/60 animate-pulse flex-shrink-0" />
+        )}
+        {status === 'visited' && (
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 flex-shrink-0" />
+        )}
         <span
           className="text-[13px] text-foreground/80 group-hover:text-accent-green transition-colors duration-300"
           style={{ fontFamily: 'var(--font-serif)' }}
@@ -849,14 +855,12 @@ function PlaceCard({
           </span>
         )}
         {status === 'touring' && (
-          <span className="flex items-center gap-1 text-[9px] text-accent-green/70 ml-auto">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-green/60 animate-pulse" />
+          <span className="text-[9px] text-accent-green/70 ml-auto">
             游览中
           </span>
         )}
         {status === 'visited' && (
-          <span className="flex items-center gap-1 text-[9px] text-muted-foreground/40 ml-auto">
-            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+          <span className="text-[9px] text-muted-foreground/40 ml-auto">
             已去过
           </span>
         )}
