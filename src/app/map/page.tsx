@@ -8,6 +8,16 @@ import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-
 import { getStoredAuth, authHeaders, clearAuth } from '@/lib/auth';
 import { checkActiveTouring } from '@/lib/touring-resume';
 
+/** 游览状态摘要（从服务端 touringState 提取，用于判断是否跳过确认页） */
+interface TouringStateSummary {
+  placeId: string;
+  completed: boolean;
+  totalEvents: number;
+  totalPlaces: number;
+  destinationName: string;
+  destinationId: string;
+}
+
 /** 动态加载地图组件，禁用 SSR */
 const MapInner = dynamic(() => import('./components/map-inner'), {
   ssr: false,
@@ -115,6 +125,8 @@ function MapPageContent() {
   // === 服务端进度（已游览地点） ===
   const [visitedMap, setVisitedMap] = useState<Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>>({});
   const [displayName, setDisplayName] = useState('');
+  // 各地点的游览状态（用于判断是否跳过确认页）
+  const [touringStateMap, setTouringStateMap] = useState<Record<string, TouringStateSummary>>({});
 
   // === 目的地列表 ===
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -164,10 +176,25 @@ function MapPageContent() {
         .then(data => {
           if (data.progress) {
             const map: Record<string, { visitedPlaceIds: string[]; totalPlaces: number }> = {};
-            for (const [slug, info] of Object.entries(data.progress as Record<string, { visitedPlaceIds: string[]; totalPlaces: number }>)) {
+            const tMap: Record<string, TouringStateSummary> = {};
+            type ProgressEntry = { visitedPlaceIds: string[]; totalPlaces: number; touringState: Record<string, unknown> | null };
+            for (const [slug, info] of Object.entries(data.progress as Record<string, ProgressEntry>)) {
               map[slug] = { visitedPlaceIds: info.visitedPlaceIds, totalPlaces: info.totalPlaces ?? 0 };
+              // 提取游览状态
+              const ts = info.touringState;
+              if (ts && ts.placeId && typeof ts.placeId === 'string') {
+                tMap[ts.placeId] = {
+                  placeId: ts.placeId,
+                  completed: ts.completed === true,
+                  totalEvents: typeof ts.totalEvents === 'number' ? ts.totalEvents : 2,
+                  totalPlaces: typeof ts.totalPlaces === 'number' ? ts.totalPlaces : 0,
+                  destinationName: typeof ts.destinationName === 'string' ? ts.destinationName : '',
+                  destinationId: typeof ts.destinationId === 'string' ? ts.destinationId : slug,
+                };
+              }
             }
             setVisitedMap(map);
+            setTouringStateMap(tMap);
           }
         })
         .catch(() => {});
@@ -397,11 +424,24 @@ function MapPageContent() {
           displayCheckinIds: displayCheckins.map(p => p.id),
         });
       }
+
+      const total = allAttractions.length + allCheckins.length;
       const nameParam = destinationName ? `&name=${encodeURIComponent(destinationName)}` : '';
-      const totalParam = `&total=${allAttractions.length + allCheckins.length}`;
+
+      // 检查该地点是否有游览状态（已完成或进行中），有则直接跳转游览页
+      const ts = touringStateMap[placeId];
+      if (ts) {
+        router.push(
+          `/visit/touring?destinationId=${destinationId}&placeId=${placeId}&events=${ts.totalEvents}&total=${ts.totalPlaces}${nameParam}`
+        );
+        return;
+      }
+
+      // 全新地点，走确认页
+      const totalParam = `&total=${total}`;
       router.push(`/visit/confirm/${destinationId}/${placeId}?${nameParam.slice(1)}${totalParam}`);
     },
-    [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins, router]
+    [selected, aiDescription, allAttractions, allCheckins, displayAttractions, displayCheckins, router, touringStateMap]
   );
 
   // === 返回首页 ===
