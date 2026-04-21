@@ -87,12 +87,13 @@ export default function MapInner({
       attributionControl: true,
     });
 
-    // 高德瓦片图层 — 无需 API Key（scale=2 高清瓦片，Retina 屏清晰显示）
+    // 高德瓦片图层 — 无需 API Key（detectRetina 自动适配高分屏）
     L.tileLayer(
-      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=2&style=8&x={x}&y={y}&z={z}',
+      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
       {
         subdomains: ['1', '2', '3', '4'],
         maxZoom: 18,
+        detectRetina: true,
         attribution: '&copy; 高德地图',
       }
     ).addTo(map);
