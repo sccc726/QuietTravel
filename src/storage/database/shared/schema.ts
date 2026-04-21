@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, unique, pgPolicy, text, index, foreignKey, integer, jsonb, boolean } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, unique, pgPolicy, text, index, foreignKey, integer, jsonb, boolean, doublePrecision } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -100,4 +100,26 @@ export const visitJournals = pgTable("visit_journals", {
 	pgPolicy("visit_journals_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
 	pgPolicy("visit_journals_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
 	pgPolicy("visit_journals_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);
+
+export const playerDestinations = pgTable("player_destinations", {
+	id: serial().primaryKey().notNull(),
+	playerId: integer("player_id").notNull(),
+	destinationSlug: text("destination_slug").notNull(),
+	destinationName: text("destination_name").notNull(),
+	lat: doublePrecision().notNull(),
+	lng: doublePrecision().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+}, (table) => [
+	index("player_destinations_player_id_idx").using("btree", table.playerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.playerId],
+			foreignColumns: [players.id],
+			name: "player_destinations_player_id_players_id_fk"
+		}).onDelete("cascade"),
+	unique("player_destinations_player_id_slug_key").on(table.playerId, table.destinationSlug),
+	pgPolicy("player_destinations_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("player_destinations_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("player_destinations_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("player_destinations_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);

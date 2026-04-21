@@ -30,6 +30,7 @@
 │   │   │   ├── auth/route.ts              # 认证（注册/登录同一接口）
 │   │   │   ├── progress/route.ts          # 玩家进度（GET/POST/PATCH，含 touring_state）
 │   │   │   ├── journals/route.ts          # 游记归档（GET/POST，visit_journals 表）
+│   │   │   ├── destinations/route.ts      # 目的地同步（GET/POST，player_destinations 表）
 │   │   │   ├── greeting/route.ts          # AI 问候语
 │   │   │   ├── destination/
 │   │   │   │   ├── validate/route.ts      # AI 校准目的地尺度（web-search+LLM）
@@ -49,9 +50,9 @@
 │   ├── storage/database/
 │   │   ├── supabase-client.ts             # Supabase 客户端（service_role_key）
 │   │   └── shared/
-│   │       ├── schema.ts                  # Drizzle schema（5张表）
-│   │       └── relations.ts              # players ↔ player_progress 关系
-│   └── server.ts                          # 自定义服务端入口
+│   │       ├── schema.ts                  # Drizzle schema（7张表）
+│   │       └── relations.ts              # players ↔ player_progress/visit_journals/player_destinations 关系
+│   └── server.ts                          # 自定义服务端入口（含数据库表自动创建）
 ├── globals.css                            # 全局样式（字体/Leaflet/动画）
 ├── next.config.ts
 ├── package.json
@@ -61,8 +62,8 @@
 ## 核心数据流
 
 1. **角色创建** → 输入旅人名称+暗号 → 注册/登录 → AI 问候语（打字机效果）→ 进入地图页
-2. **搜索目的地** → AI 校准尺度（valid/too_narrow/too_broad/not_found）→ 创建运行时目的地 → 地图飞到坐标
-3. **目的地选择** → 地图光点点击或搜索 → 并行获取 description/attractions/checkins → 双栏展示随机3条
+2. **搜索目的地** → AI 校准尺度（valid/too_narrow/too_broad/not_found）→ 创建运行时目的地 → 保存到服务端 → 地图飞到坐标
+3. **目的地选择** → 地图光点点击或搜索 → 并行获取 description/attractions/checkins → 全量列表+排序展示
 4. **点选地点** → 有游览状态（已完成/进行中）直接跳游览页；全新地点走确认页（含未完成游览警告）→ 确认出发
 5. **游览中** → 定时 AI 随机事件（20-60min间隔，30%配图，每景点最多1图）→ 随意逛逛按钮 → 背景音乐
 6. **游览状态持久化** → 每30秒保存 touring_state 到服务端（含事件列表）→ 页面刷新/关闭后可恢复 → 批量补生成错过事件
@@ -72,9 +73,11 @@
 ## 目的地管理
 
 - `destinations.ts` 预设列表为空，所有目的地由搜索动态创建
-- 运行时目的地列表存于页面 state + sessionStorage 持久化
+- 目的地列表存储于服务端 `player_destinations` 表，初始化时从服务端加载
+- sessionStorage 作为本地缓存，与服务端合并（服务端为准，补充本地独有）
 - `destinationSlug(name)` 生成 URL 安全的 ID
 - API 路由通过请求体接收 `destinationName`，不依赖静态列表
+- 搜索校准通过后，`confirmDestination` 同时写入 state + 服务端
 
 ## 校准逻辑（/api/destination/validate）
 
@@ -89,9 +92,11 @@
 - `players(id, username, password, created_at)` — username UNIQUE
 - `player_progress(id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state)` — UNIQUE(player_id, destination_slug)
 - `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
+- `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
 - `cache_info(destination_slug PK, destination_name, info JSONB, created_at)`
 - `cache_attractions(destination_slug PK, attractions JSONB, created_at)`
 - `cache_checkins(destination_slug PK, checkins JSONB, created_at)`
+- `player_destinations(id, player_id, destination_slug, destination_name, lat, lng, created_at)` — 玩家目的地列表，UNIQUE(player_id, destination_slug)
 
 ## 缓存机制
 

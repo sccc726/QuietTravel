@@ -146,46 +146,87 @@ function MapPageContent() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateResult | null>(null);
 
-  // === 初始化：从 sessionStorage 恢复 + 从服务端加载进度 ===
+  // === 初始化：从服务端加载目的地 + 进度 ===
+  const serverDestinationsLoaded = useRef(false);
   useEffect(() => {
-    const savedDests = loadDestinations();
-    if (savedDests.length > 0) {
-      setDestinations(savedDests);
-    }
-    setDestinationsLoaded(true);
+    const auth = getStoredAuth();
+    if (!auth) return;
+
+    // 从服务端加载目的地（以服务端为准，合并 sessionStorage 中的新目的地）
+    fetch('/api/destinations', { headers: authHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.destinations) return;
+        const serverDests: Destination[] = data.destinations.map((d: { id: string; name: string; lat: number; lng: number }) => ({
+          id: d.id,
+          name: d.name,
+          description: '',
+          coordinates: { lat: d.lat, lng: d.lng },
+          spots: [],
+        }));
+
+        // 合并：服务端为基础，补充 sessionStorage 中服务端没有的新目的地
+        const savedDests = loadDestinations();
+        const serverIds = new Set(serverDests.map((d: Destination) => d.id));
+        const localOnly = savedDests.filter(d => !serverIds.has(d.id));
+        const merged = [...serverDests, ...localOnly];
+
+        setDestinations(merged);
+        serverDestinationsLoaded.current = true;
+        setDestinationsLoaded(true);
+
+        // 将本地独有的目的地同步到服务端
+        if (localOnly.length > 0) {
+          for (const dest of localOnly) {
+            fetch('/api/destinations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({
+                destinationSlug: dest.id,
+                destinationName: dest.name,
+                lat: dest.coordinates.lat,
+                lng: dest.coordinates.lng,
+              }),
+            }).catch(() => {});
+          }
+        }
+      })
+      .catch(() => {
+        // 服务端加载失败，降级到 sessionStorage
+        const savedDests = loadDestinations();
+        if (savedDests.length > 0) setDestinations(savedDests);
+        setDestinationsLoaded(true);
+      });
 
     // 从服务端加载已游览进度
-    const auth = getStoredAuth();
-    if (auth) {
-      fetch('/api/progress', { headers: authHeaders() })
-        .then(res => res.json())
-        .then(data => {
-          if (data.progress) {
-            const map: Record<string, { visitedPlaceIds: string[]; totalPlaces: number }> = {};
-            const tMap: Record<string, TouringStateSummary> = {};
-            type ProgressEntry = { visitedPlaceIds: string[]; totalPlaces: number; touringState: Record<string, unknown> | null };
-            for (const [slug, info] of Object.entries(data.progress as Record<string, ProgressEntry>)) {
-              map[slug] = { visitedPlaceIds: info.visitedPlaceIds, totalPlaces: info.totalPlaces ?? 0 };
-              // 提取游览状态
-              const ts = info.touringState;
-              if (ts && ts.placeId && typeof ts.placeId === 'string') {
-                tMap[ts.placeId] = {
-                  placeId: ts.placeId,
-                  placeName: typeof ts.placeName === 'string' ? ts.placeName : '',
-                  completed: ts.completed === true,
-                  totalEvents: typeof ts.totalEvents === 'number' ? ts.totalEvents : 2,
-                  totalPlaces: typeof ts.totalPlaces === 'number' ? ts.totalPlaces : 0,
-                  destinationName: typeof ts.destinationName === 'string' ? ts.destinationName : '',
-                  destinationId: typeof ts.destinationId === 'string' ? ts.destinationId : slug,
-                };
-              }
+    fetch('/api/progress', { headers: authHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (data.progress) {
+          const map: Record<string, { visitedPlaceIds: string[]; totalPlaces: number }> = {};
+          const tMap: Record<string, TouringStateSummary> = {};
+          type ProgressEntry = { visitedPlaceIds: string[]; totalPlaces: number; touringState: Record<string, unknown> | null };
+          for (const [slug, info] of Object.entries(data.progress as Record<string, ProgressEntry>)) {
+            map[slug] = { visitedPlaceIds: info.visitedPlaceIds, totalPlaces: info.totalPlaces ?? 0 };
+            // 提取游览状态
+            const ts = info.touringState;
+            if (ts && ts.placeId && typeof ts.placeId === 'string') {
+              tMap[ts.placeId] = {
+                placeId: ts.placeId,
+                placeName: typeof ts.placeName === 'string' ? ts.placeName : '',
+                completed: ts.completed === true,
+                totalEvents: typeof ts.totalEvents === 'number' ? ts.totalEvents : 2,
+                totalPlaces: typeof ts.totalPlaces === 'number' ? ts.totalPlaces : 0,
+                destinationName: typeof ts.destinationName === 'string' ? ts.destinationName : '',
+                destinationId: typeof ts.destinationId === 'string' ? ts.destinationId : slug,
+              };
             }
-            setVisitedMap(map);
-            setTouringStateMap(tMap);
           }
-        })
-        .catch(() => {});
-    }
+          setVisitedMap(map);
+          setTouringStateMap(tMap);
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -347,6 +388,18 @@ function MapPageContent() {
       setSelected(newDest);
       setValidateResult(null);
       setSearchQuery('');
+
+      // 保存到服务端
+      fetch('/api/destinations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          destinationSlug: id,
+          destinationName: name,
+          lat,
+          lng,
+        }),
+      }).catch(() => {});
     },
     [destinations]
   );
