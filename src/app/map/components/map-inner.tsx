@@ -89,7 +89,7 @@ export default function MapInner({
 
     // 高德瓦片图层 — 无需 API Key（size=2&scale=2 高清瓦片，消除 Retina 屏颗粒感）
     L.tileLayer(
-      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=2&scale=2&style=8&x={x}&y={y}&z={z}',
+      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=2&scale=1&style=8&x={x}&y={y}&z={z}',
       {
         subdomains: ['1', '2', '3', '4'],
         maxZoom: 18,
