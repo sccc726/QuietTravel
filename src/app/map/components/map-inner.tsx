@@ -32,7 +32,7 @@ function getMarkerState(dest: Destination, visitedMap: Record<string, { visitedP
 
 /** 中国中心视角 */
 const INITIAL_CENTER: L.LatLngExpression = [34.5, 108];
-const INITIAL_ZOOM = 5;
+const INITIAL_ZOOM = 6;
 
 /** 创建目的地光点图标 */
 function createMarkerIcon(state: MarkerState, isSelected: boolean): L.DivIcon {
