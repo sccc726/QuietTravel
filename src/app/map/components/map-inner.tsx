@@ -171,6 +171,14 @@ export default function MapInner({
       map.flyTo([dest.coordinates.lat, dest.coordinates.lng], 10, {
         duration: 1.2,
       });
+      // 飞行结束后，将光点从容器中心上移到距顶部约120px（顶栏+搜索框下方）
+      map.once('moveend', () => {
+        const containerH = map.getContainer().clientHeight;
+        const offset = containerH / 2 - 120;
+        if (offset > 0) {
+          map.panBy([0, offset], { animate: false });
+        }
+      });
     }
   }, [selectedId, destinations]);
 
