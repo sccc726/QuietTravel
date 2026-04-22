@@ -161,24 +161,23 @@ export default function MapInner({
     }
   }, [selectedId, visitedMap, destinations]);
 
-  // 选中目的地时飞到该位置
+  // 选中目的地时飞到该位置（光点落在距顶部约120px处）
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedId) return;
 
     const dest = destinations.find(d => d.id === selectedId);
     if (dest) {
-      map.flyTo([dest.coordinates.lat, dest.coordinates.lng], 10, {
-        duration: 1.2,
-      });
-      // 飞行结束后，将光点从容器中心上移到距顶部约120px（顶栏+搜索框下方）
-      map.once('moveend', () => {
-        const containerH = map.getContainer().clientHeight;
-        const offset = containerH / 2 - 120;
-        if (offset > 0) {
-          map.panBy([0, offset], { animate: false });
-        }
-      });
+      const targetZoom = 10;
+      const offset = map.getContainer().clientHeight / 2 - 120;
+      // 在目标 zoom 下将光点坐标转为像素，Y 轴向下偏移后转回经纬度
+      // 这样该点飞到容器中心时，光点正好在顶部 ~120px
+      const destPoint = map.options.crs.latLngToPoint(
+        L.latLng(dest.coordinates.lat, dest.coordinates.lng), targetZoom
+      );
+      const adjustedPoint = L.point(destPoint.x, destPoint.y + offset);
+      const adjustedLatLng = map.options.crs.pointToLatLng(adjustedPoint, targetZoom);
+      map.flyTo(adjustedLatLng, targetZoom, { duration: 1.2 });
     }
   }, [selectedId, destinations]);
 
