@@ -44,6 +44,8 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   // 资源
   const [money, setMoney] = useState(500);
   const [mood, setMood] = useState(10);
+  // 缓存是否已加载（避免 TimeTimeline 闪烁回默认值）
+  const [timeLoaded, setTimeLoaded] = useState(false);
 
   // 从 localStorage 缓存读取，避免页面闪烁
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
     const res = getCachedResources();
     setMoney(res.money);
     setMood(res.mood);
+    setTimeLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -146,7 +149,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
       {/* 时间线 — 与地图页/游览页同位置 */}
       <div className="px-4 py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
-        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
+        {timeLoaded && <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />}
       </div>
       <div className="flex-1 flex flex-col items-center justify-center w-full px-6">
         <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">

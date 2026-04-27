@@ -97,6 +97,8 @@ function TouringContent() {
   moneyRef.current = money;
   const moodRef = useRef(10);
   moodRef.current = mood;
+  // 缓存是否已加载（避免 TimeTimeline 闪烁回默认值）
+  const [timeLoaded, setTimeLoaded] = useState(false);
 
   // 事件是否全部完成
   const allDone = events.length >= totalEvents;
@@ -217,6 +219,7 @@ function TouringContent() {
     setMood(res.mood);
     moneyRef.current = res.money;
     moodRef.current = res.mood;
+    setTimeLoaded(true);
   }, []);
 
   // ─── 背景音乐 ─────────────────────────────────────
@@ -842,7 +845,7 @@ function TouringContent() {
 
       {/* 时间线 */}
       <div className="px-4 py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
-        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
+        {timeLoaded && <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />}
       </div>
 
       {/* 主内容 */}

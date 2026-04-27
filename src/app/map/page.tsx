@@ -111,6 +111,8 @@ function MapPageContent() {
   // 资源
   const [money, setMoney] = useState(500);
   const [mood, setMood] = useState(10);
+  // 缓存是否已加载（避免 TimeTimeline 闪烁回默认值）
+  const [timeLoaded, setTimeLoaded] = useState(false);
 
   // 获取地点状态标签
   const getPlaceStatus = useCallback((placeId: string, destId: string): 'touring' | 'visited' | undefined => {
@@ -161,6 +163,7 @@ function MapPageContent() {
     const res = getCachedResources();
     setMoney(res.money);
     setMood(res.mood);
+    setTimeLoaded(true);
   }, []);
 
   // === 初始化：从服务端加载目的地 + 进度 ===
@@ -575,7 +578,7 @@ function MapPageContent() {
 
       {/* 时间线 */}
       <div className="px-4 py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
-        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
+        {timeLoaded && <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />}
       </div>
 
       {/* 地图区域 */}
