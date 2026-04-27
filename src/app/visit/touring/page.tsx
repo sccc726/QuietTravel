@@ -330,18 +330,29 @@ function TouringContent() {
           clearInterval(timer);
           setIsTyping(false);
           setPendingEvent(null);
-          setEvents(prev => {
-            const next = [...prev, eventData];
-            // 更新完成事件数后保存状态
-            saveTouringState({ completedEvents: next.length, events: next });
-            // 推进游戏时间 1 步
-            advanceGameTime(1);
-            return next;
-          });
+          setEvents(prev => [...prev, eventData]);
+          // 副作用放在 setState 外部
+          // 推进游戏时间 1 步
+          const currentSlot = gameTimeSlotRef.current;
+          const { slot: newSlot, newDay } = nextTimeSlot(currentSlot);
+          gameTimeSlotRef.current = newSlot;
+          if (newDay) gameDayRef.current = gameDayRef.current + 1;
+          setGameTimeSlot(newSlot);
+          setGameDay(gameDayRef.current);
+          // 保存状态（setTimeout 确保在 setEvents 生效后执行）
+          setTimeout(() => {
+            saveTouringState();
+            // 保存游戏时间到服务端
+            fetch('/api/progress', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({ gameDay: gameDayRef.current, gameTimeSlot: newSlot }),
+            }).catch(() => {});
+          }, 0);
         }
       }, typingSpeed);
     },
-    [saveTouringState, advanceGameTime]
+    [saveTouringState, nextTimeSlot]
   );
 
   // ─── 初始化：尝试恢复游览状态 ─────────────────────
@@ -478,8 +489,8 @@ function TouringContent() {
           }
           setEvents(finalEvents);
           setMode('completed');
-          // 推进游戏时间（按生成的事件数量）
-          advanceGameTime(finalEvents.length);
+          // 推进游戏时间（仅按新生成的事件数量推进，已有事件之前已经推进过）
+          advanceGameTime(remainingCount);
           // 保存完成状态
           await saveTouringState({ completed: true, completedEvents: state.totalEvents, events: finalEvents });
           // 保存游记到 visit_journals 表

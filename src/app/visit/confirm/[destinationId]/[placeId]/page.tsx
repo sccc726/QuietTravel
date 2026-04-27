@@ -52,6 +52,10 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
     fetch('/api/progress', { headers: authHeaders() })
       .then(res => res.json())
       .then(async data => {
+        // 加载游戏时间（无论是否有 progress 都要加载）
+        if (data.gameDay !== undefined) setGameDay(data.gameDay);
+        if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
+
         if (!data.progress) return;
         const destProgress = data.progress[destinationId];
         if (!destProgress?.touringState) return;
@@ -88,9 +92,6 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
           pName = pName || '其他景点';
         }
         setOngoingTour({ placeId: ts.placeId, placeName: pName });
-        // 加载游戏时间
-        if (data.gameDay !== undefined) setGameDay(data.gameDay);
-        if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
       })
       .catch(() => {});
   }, [destinationId, placeId, placeType]);
