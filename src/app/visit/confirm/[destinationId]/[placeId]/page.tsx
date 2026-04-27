@@ -109,7 +109,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* 顶部占位 — 与地图页 header 等高，保持时间线位置一致 */}
       <div className="w-full flex items-center justify-between px-6 py-3 border-b border-border/40 shrink-0">
         <button
