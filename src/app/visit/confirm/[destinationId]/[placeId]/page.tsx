@@ -145,7 +145,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
       </div>
 
       {/* 时间线 — 与地图页/游览页同位置 */}
-      <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
+      <div className="px-4 py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
         <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
       </div>
       <div className="flex-1 flex flex-col items-center justify-center w-full px-6">

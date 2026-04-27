@@ -841,7 +841,7 @@ function TouringContent() {
       </header>
 
       {/* 时间线 */}
-      <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
+      <div className="px-4 py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
         <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
       </div>
 
