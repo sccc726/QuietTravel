@@ -35,22 +35,27 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
         </div>
       )}
 
-      {/* 圆点行 — 心境(左贴边) + 时间线圆点(居中) + 金钱(右贴边) */}
+      {/* 圆点行 — 心境(左贴边) + 弹性间隔 + 时间线圆点(居中) + 弹性间隔 + 金钱(右贴边) */}
       <div className="flex items-center w-full">
         {/* 心境 — 左侧贴边 */}
-        {mood !== undefined ? (
-          <div className="flex items-center gap-0.5 shrink-0" title="心境">
-            <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 340 / 70%)' }}>
-              ♥
-            </span>
-            <span className="text-[10px] leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.5 0.06 340 / 65%)' }}>
-              {mood}
-            </span>
-          </div>
-        ) : <div />}
+        <div className="shrink-0" title="心境">
+          {mood !== undefined ? (
+            <div className="flex items-center gap-0.5">
+              <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 340 / 70%)' }}>
+                ♥
+              </span>
+              <span className="text-[10px] leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.5 0.06 340 / 65%)' }}>
+                {mood}
+              </span>
+            </div>
+          ) : <div className="w-0" />}
+        </div>
+
+        {/* 左弹性间隔 */}
+        <div className="flex-1 min-w-2" />
 
         {/* 时间线圆点 — 居中 */}
-        <div className="flex-1 flex items-center justify-center">
+        <div className="shrink-0 flex items-center">
           {ALL_TIME_SLOTS.map((slot, idx) => {
             const isCurrent = slot === timeSlot;
             const isPast = slot < timeSlot;
@@ -100,17 +105,22 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
           })}
         </div>
 
+        {/* 右弹性间隔 */}
+        <div className="flex-1 min-w-2" />
+
         {/* 金钱 — 右侧贴边 */}
-        {money !== undefined ? (
-          <div className="flex items-center gap-0.5 shrink-0" title="金钱">
-            <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 85 / 70%)' }}>
-              ◆
-            </span>
-            <span className="text-[10px] leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.5 0.06 85 / 65%)' }}>
-              {money}
-            </span>
-          </div>
-        ) : <div />}
+        <div className="shrink-0" title="金钱">
+          {money !== undefined ? (
+            <div className="flex items-center gap-0.5">
+              <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 85 / 70%)' }}>
+                ◆
+              </span>
+              <span className="text-[10px] leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.5 0.06 85 / 65%)' }}>
+                {money}
+              </span>
+            </div>
+          ) : <div className="w-0" />}
+        </div>
       </div>
 
       {/* 标签行 */}
