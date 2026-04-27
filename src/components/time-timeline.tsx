@@ -5,12 +5,14 @@ import { TimeSlot, timeSlotName, isSpecialSlot, ALL_TIME_SLOTS } from '@/lib/des
 interface TimeTimelineProps {
   day: number;
   timeSlot: TimeSlot;
+  money?: number;
+  mood?: number;
   /** 紧凑模式，不显示天数文字 */
   compact?: boolean;
 }
 
-/** 时间线组件 — 9 个节点，当前时段有棕色光点，全部使用两字标注 */
-export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTimelineProps) {
+/** 时间线组件 — 心境(左) · 时间线(中) · 金钱(右) */
+export default function TimeTimeline({ day, timeSlot, money, mood, compact = false }: TimeTimelineProps) {
   const labels: Record<TimeSlot, string> = {
     [TimeSlot.dawn]: '拂晓',
     [TimeSlot.morning1]: '清晨',
@@ -26,65 +28,92 @@ export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTim
   const LINE_W = 20;
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-0.5">
       {!compact && (
         <div className="text-[10px] text-muted-foreground/50 tracking-widest" style={{ fontFamily: 'var(--font-serif)' }}>
           第{day}天 · {timeSlotName(timeSlot)}
         </div>
       )}
 
-      {/* 圆点行 — 连线与圆点中心对齐 */}
-      <div className="flex items-center">
-        {ALL_TIME_SLOTS.map((slot, idx) => {
-          const isCurrent = slot === timeSlot;
-          const isPast = slot < timeSlot;
-          const isSpecial = isSpecialSlot(slot);
-          const nodeSize = isSpecial ? 5 : 7;
-          const glowSize = isSpecial ? 12 : 16;
+      {/* 圆点行 — 心境(左) + 时间线圆点(中) + 金钱(右) */}
+      <div className="flex items-center gap-3 w-full justify-center">
+        {/* 心境 — 左侧 */}
+        {mood !== undefined && (
+          <div className="flex items-center gap-0.5 shrink-0" title="心境">
+            <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 340 / 70%)' }}>
+              ♥
+            </span>
+            <span className="text-[10px] leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.5 0.06 340 / 65%)' }}>
+              {mood}
+            </span>
+          </div>
+        )}
 
-          return (
-            <div key={slot} className="flex items-center">
-              {idx > 0 && (
-                <div className="h-px bg-muted-foreground/15" style={{ width: LINE_W }} />
-              )}
-              <div className="relative flex items-center justify-center" style={{ width: nodeSize, height: nodeSize }}>
-                {isCurrent && (
+        {/* 时间线圆点 */}
+        <div className="flex items-center">
+          {ALL_TIME_SLOTS.map((slot, idx) => {
+            const isCurrent = slot === timeSlot;
+            const isPast = slot < timeSlot;
+            const isSpecial = isSpecialSlot(slot);
+            const nodeSize = isSpecial ? 5 : 7;
+            const glowSize = isSpecial ? 12 : 16;
+
+            return (
+              <div key={slot} className="flex items-center">
+                {idx > 0 && (
+                  <div className="h-px bg-muted-foreground/15" style={{ width: LINE_W }} />
+                )}
+                <div className="relative flex items-center justify-center" style={{ width: nodeSize, height: nodeSize }}>
+                  {isCurrent && (
+                    <div
+                      className="absolute rounded-full animate-pulse"
+                      style={{
+                        width: glowSize,
+                        height: glowSize,
+                        background: 'oklch(0.55 0.10 60 / 25%)',
+                      }}
+                    />
+                  )}
                   <div
-                    className="absolute rounded-full animate-pulse"
+                    className="relative rounded-full transition-all duration-300"
                     style={{
-                      width: glowSize,
-                      height: glowSize,
-                      background: 'oklch(0.55 0.10 60 / 25%)',
+                      width: nodeSize,
+                      height: nodeSize,
+                      background: isCurrent
+                        ? 'oklch(0.45 0.08 55)'
+                        : isPast
+                          ? 'oklch(0.65 0.02 90)'
+                          : 'transparent',
+                      border: isCurrent
+                        ? 'none'
+                        : isPast
+                          ? 'none'
+                          : '1px solid oklch(0.70 0.02 90 / 50%)',
+                      boxShadow: isCurrent
+                        ? '0 0 6px oklch(0.45 0.08 55 / 50%)'
+                        : 'none',
                     }}
                   />
-                )}
-                <div
-                  className="relative rounded-full transition-all duration-300"
-                  style={{
-                    width: nodeSize,
-                    height: nodeSize,
-                    background: isCurrent
-                      ? 'oklch(0.45 0.08 55)'
-                      : isPast
-                        ? 'oklch(0.65 0.02 90)'
-                        : 'transparent',
-                    border: isCurrent
-                      ? 'none'
-                      : isPast
-                        ? 'none'
-                        : '1px solid oklch(0.70 0.02 90 / 50%)',
-                    boxShadow: isCurrent
-                      ? '0 0 6px oklch(0.45 0.08 55 / 50%)'
-                      : 'none',
-                  }}
-                />
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* 金钱 — 右侧 */}
+        {money !== undefined && (
+          <div className="flex items-center gap-0.5 shrink-0" title="金钱">
+            <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 85 / 70%)' }}>
+              ◆
+            </span>
+            <span className="text-[10px] leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.5 0.06 85 / 65%)' }}>
+              {money}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* 标签行 — 与圆点行对齐 */}
+      {/* 标签行 */}
       <div className="flex items-start">
         {ALL_TIME_SLOTS.map((slot, idx) => {
           const isCurrent = slot === timeSlot;

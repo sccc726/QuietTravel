@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '查询失败' }, { status: 500 });
   }
 
-  // 获取玩家游戏时间
+  // 获取玩家游戏时间和资源
   const { data: playerData } = await client
     .from('players')
-    .select('game_day, game_time_slot')
+    .select('game_day, game_time_slot, money, mood')
     .eq('id', playerId)
     .single();
 
@@ -48,6 +48,8 @@ export async function GET(request: NextRequest) {
     progress,
     gameDay: playerData?.game_day ?? 1,
     gameTimeSlot: playerData?.game_time_slot ?? 1,
+    money: playerData?.money ?? 500,
+    mood: playerData?.mood ?? 10,
   });
 }
 
@@ -99,9 +101,9 @@ export async function PATCH(request: NextRequest) {
   const playerId = parseToken(token);
   if (!playerId) return NextResponse.json({ error: '登录已过期' }, { status: 401 });
 
-  const { destinationSlug, touringState, visitedPlaceIds, gameDay, gameTimeSlot } = await request.json();
+  const { destinationSlug, touringState, visitedPlaceIds, gameDay, gameTimeSlot, money, mood } = await request.json();
 
-  if (!destinationSlug && gameDay === undefined && gameTimeSlot === undefined) {
+  if (!destinationSlug && gameDay === undefined && gameTimeSlot === undefined && money === undefined && mood === undefined) {
     return NextResponse.json({ error: '参数不完整' }, { status: 400 });
   }
 
@@ -137,17 +139,19 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  // 更新玩家游戏时间
-  if (gameDay !== undefined || gameTimeSlot !== undefined) {
-    const timeUpdate: Record<string, unknown> = {};
-    if (gameDay !== undefined) timeUpdate.game_day = gameDay;
-    if (gameTimeSlot !== undefined) timeUpdate.game_time_slot = gameTimeSlot;
-    const { error: timeError } = await client
+  // 更新玩家游戏时间和资源
+  if (gameDay !== undefined || gameTimeSlot !== undefined || money !== undefined || mood !== undefined) {
+    const playerUpdate: Record<string, unknown> = {};
+    if (gameDay !== undefined) playerUpdate.game_day = gameDay;
+    if (gameTimeSlot !== undefined) playerUpdate.game_time_slot = gameTimeSlot;
+    if (money !== undefined) playerUpdate.money = money;
+    if (mood !== undefined) playerUpdate.mood = mood;
+    const { error: playerError } = await client
       .from('players')
-      .update(timeUpdate)
+      .update(playerUpdate)
       .eq('id', playerId);
-    if (timeError) {
-      console.error('[/api/progress PATCH] 游戏时间更新失败:', timeError);
+    if (playerError) {
+      console.error('[/api/progress PATCH] 玩家数据更新失败:', playerError);
     }
   }
 

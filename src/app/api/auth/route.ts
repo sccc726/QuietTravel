@@ -63,10 +63,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '密码不正确' }, { status: 401 });
       }
       const token = generateToken(existing.id);
-      // 获取游戏时间
+      // 获取游戏时间和资源
       const { data: playerData } = await client
         .from('players')
-        .select('game_day, game_time_slot')
+        .select('game_day, game_time_slot, money, mood')
         .eq('id', existing.id)
         .single();
       return NextResponse.json({
@@ -76,6 +76,8 @@ export async function POST(request: NextRequest) {
         token,
         gameDay: playerData?.game_day ?? 1,
         gameTimeSlot: playerData?.game_time_slot ?? 1,
+        money: playerData?.money ?? 500,
+        mood: playerData?.mood ?? 10,
       });
     } else {
       // 新用户 — 注册
@@ -97,6 +99,8 @@ export async function POST(request: NextRequest) {
         token,
         gameDay: 1,
         gameTimeSlot: 1,
+        money: 500,
+        mood: 10,
       });
     }
   } catch (error) {

@@ -98,13 +98,15 @@ export default function CharacterCreatePage() {
         return;
       }
 
-      // 保存认证信息（含游戏时间）
+      // 保存认证信息（含游戏时间和资源）
       storeAuth({
         token: data.token,
         playerId: data.player.id,
         username: data.player.username,
         gameDay: data.gameDay,
         gameTimeSlot: data.gameTimeSlot,
+        money: data.money,
+        mood: data.mood,
       });
 
       setIsNewUser(data.mode === 'register');

@@ -91,9 +91,8 @@
 
 ## 数据库表结构
 
-- `players(id, username, password, game_day, game_time_slot, created_at)` — username UNIQUE
+- `players(id, username, password, game_day, game_time_slot, money, mood, created_at)` — username UNIQUE
 - `player_progress(id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state)` — UNIQUE(player_id, destination_slug)
-- `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
 - `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
 - `cache_info(destination_slug PK, destination_name, info JSONB, created_at)`
 - `cache_attractions(destination_slug PK, attractions JSONB, created_at)`
@@ -123,7 +122,16 @@
 - 游览时每个随机事件推进一个时段
 - 景点不跨天（最多 3 个事件，7 时段足够）
 - 时间影响 AI 事件生成（prompt 注入时段描述）和页面色调
-- `TimeTimeline` 组件在地图页/确认页/游览页顶部常显（9 节点 + 当前时段棕色光点）
+- `TimeTimeline` 组件在地图页/确认页/游览页顶部常显（9 节点 + 当前时段棕色光点 + 心境♥左侧 + 金钱◆右侧）
+
+## 资源系统
+
+- 金钱（money）：默认 500，最小 0，无上限，整数
+- 心境（mood）：默认 10，范围 0-10，整数
+- 存储在 `players` 表的 `money`(INT, default 500) 和 `mood`(INT, default 10) 列
+- `/api/auth` 返回 money + mood，`/api/progress` GET 返回 + PATCH 支持更新
+- `lib/auth.ts` 缓存：`getCachedResources()` / `cacheResources()` / `cachePlayerState()` 统一缓存时间+资源
+- `TimeTimeline` 接收 `money` 和 `mood` props，在时间线左右两侧常显
 
 ## 地图标记状态
 
@@ -172,6 +180,7 @@
 1. 严禁 JSX 中直接使用 Math.random/Date.now/typeof window → 使用 useState + useEffect
 2. 禁止使用 head 标签，优先 metadata
 3. 三方 CSS/字体通过 globals.css @import 或 next/font
+4. **localStorage 缓存值初始化**：gameDay/gameTimeSlot/money/mood 等 localStorage 缓存值，useState 用默认值初始化（SSR 安全），在 useEffect 中从缓存更新（避免 hydration mismatch）
 
 ### Leaflet 注意事项
 
@@ -191,7 +200,7 @@
 
 - `cyber-voyage-destinations` — 运行时目的地列表
 - `cyber-voyage-map-state` — 地图页面状态（选中目的地、展示列表等）
-- `elsewhere-auth` — 认证信息（token/playerId/username）
+- `elsewhere-auth` — 认证信息（token/playerId/username + gameDay/gameTimeSlot/money/mood 缓存）
 - 离开地图页前保存，返回时恢复后清除
 
 ## 常用命令

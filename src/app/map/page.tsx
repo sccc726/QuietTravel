@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, type TimeSlot, destinationSlug } from '@/lib/destinations';
 import TimeTimeline from '@/components/time-timeline';
 import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
-import { getStoredAuth, authHeaders, clearAuth, getCachedGameTime, cacheGameTime } from '@/lib/auth';
+import { getStoredAuth, authHeaders, clearAuth, getCachedGameTime, getCachedResources, cachePlayerState } from '@/lib/auth';
 
 /** 游览状态摘要（从服务端 touringState 提取，用于判断是否跳过确认页） */
 interface TouringStateSummary {
@@ -105,9 +105,12 @@ function MapPageContent() {
   const [displayName, setDisplayName] = useState('');
   // 各地点的游览状态（用于判断是否跳过确认页）
   const [touringStateMap, setTouringStateMap] = useState<Record<string, TouringStateSummary>>({});
-  // 游戏时间（初始化从 localStorage 缓存读取，避免闪烁）
-  const [gameDay, setGameDay] = useState(() => getCachedGameTime().gameDay);
-  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(() => getCachedGameTime().gameTimeSlot as TimeSlot);
+  // 游戏时间（SSR 用默认值，客户端 mount 后从 localStorage 更新，避免 hydration mismatch）
+  const [gameDay, setGameDay] = useState(1);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
+  // 资源
+  const [money, setMoney] = useState(500);
+  const [mood, setMood] = useState(10);
 
   // 获取地点状态标签
   const getPlaceStatus = useCallback((placeId: string, destId: string): 'touring' | 'visited' | undefined => {
@@ -149,6 +152,16 @@ function MapPageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateResult | null>(null);
+
+  // === 初始化：从 localStorage 缓存读取，避免页面闪烁 ===
+  useEffect(() => {
+    const cached = getCachedGameTime();
+    setGameDay(cached.gameDay);
+    setGameTimeSlot(cached.gameTimeSlot as TimeSlot);
+    const res = getCachedResources();
+    setMoney(res.money);
+    setMood(res.mood);
+  }, []);
 
   // === 初始化：从服务端加载目的地 + 进度 ===
   const serverDestinationsLoaded = useRef(false);
@@ -232,9 +245,12 @@ function MapPageContent() {
         // 加载游戏时间
         if (data.gameDay !== undefined) {
           setGameDay(data.gameDay);
-          cacheGameTime(data.gameDay, data.gameTimeSlot ?? 1);
+          cachePlayerState(data.gameDay, data.gameTimeSlot ?? 1, data.money ?? 500, data.mood ?? 10);
         }
         if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
+        // 加载资源
+        if (data.money !== undefined) setMoney(data.money);
+        if (data.mood !== undefined) setMood(data.mood);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -559,7 +575,7 @@ function MapPageContent() {
 
       {/* 时间线 */}
       <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
-        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
+        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
       </div>
 
       {/* 地图区域 */}

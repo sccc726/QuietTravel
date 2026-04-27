@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { PlaceType, TimeSlot } from '@/lib/destinations';
-import { authHeaders, getCachedGameTime, cacheGameTime } from '@/lib/auth';
+import { authHeaders, getCachedGameTime, getCachedResources, cachePlayerState } from '@/lib/auth';
 import TimeTimeline from '@/components/time-timeline';
 
 interface OngoingTour {
@@ -38,9 +38,22 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   const [eventCount, setEventCount] = useState<number | null>(null);
   // 同目的地未完成的游览
   const [ongoingTour, setOngoingTour] = useState<OngoingTour | null>(null);
-  // 游戏时间（初始化从 localStorage 缓存读取，避免闪烁）
-  const [gameDay, setGameDay] = useState(() => getCachedGameTime().gameDay);
-  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(() => getCachedGameTime().gameTimeSlot as TimeSlot);
+  // 游戏时间（SSR 用默认值，客户端 mount 后从 localStorage 更新，避免 hydration mismatch）
+  const [gameDay, setGameDay] = useState(1);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
+  // 资源
+  const [money, setMoney] = useState(500);
+  const [mood, setMood] = useState(10);
+
+  // 从 localStorage 缓存读取，避免页面闪烁
+  useEffect(() => {
+    const cached = getCachedGameTime();
+    setGameDay(cached.gameDay);
+    setGameTimeSlot(cached.gameTimeSlot as TimeSlot);
+    const res = getCachedResources();
+    setMoney(res.money);
+    setMood(res.mood);
+  }, []);
 
   useEffect(() => {
     const count = placeType === 'attraction'
@@ -55,9 +68,12 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
         // 加载游戏时间（无论是否有 progress 都要加载）
         if (data.gameDay !== undefined) {
           setGameDay(data.gameDay);
-          cacheGameTime(data.gameDay, data.gameTimeSlot ?? 1);
+          cachePlayerState(data.gameDay, data.gameTimeSlot ?? 1, data.money ?? 500, data.mood ?? 10);
         }
         if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
+        // 加载资源
+        if (data.money !== undefined) setMoney(data.money);
+        if (data.mood !== undefined) setMood(data.mood);
 
         if (!data.progress) return;
         const destProgress = data.progress[destinationId];
@@ -130,7 +146,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
       {/* 时间线 — 与地图页/游览页同位置 */}
       <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
-        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
+        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
       </div>
       <div className="flex-1 flex flex-col items-center justify-center w-full px-6">
         <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">

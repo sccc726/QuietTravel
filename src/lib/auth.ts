@@ -8,6 +8,8 @@ interface AuthData {
   username: string;
   gameDay?: number;
   gameTimeSlot?: number;
+  money?: number;
+  mood?: number;
 }
 
 /** 读取本地存储的认证信息 */
@@ -47,12 +49,43 @@ export function getCachedGameTime(): { gameDay: number; gameTimeSlot: number } {
   };
 }
 
+/** 从本地缓存读取资源 */
+export function getCachedResources(): { money: number; mood: number } {
+  const auth = getStoredAuth();
+  return {
+    money: auth?.money ?? 500,
+    mood: auth?.mood ?? 10,
+  };
+}
+
 /** 更新本地缓存的游戏时间 */
 export function cacheGameTime(gameDay: number, gameTimeSlot: number) {
   const auth = getStoredAuth();
   if (auth) {
     auth.gameDay = gameDay;
     auth.gameTimeSlot = gameTimeSlot;
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  }
+}
+
+/** 更新本地缓存的资源 */
+export function cacheResources(money: number, mood: number) {
+  const auth = getStoredAuth();
+  if (auth) {
+    auth.money = money;
+    auth.mood = mood;
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  }
+}
+
+/** 更新本地缓存（游戏时间 + 资源） */
+export function cachePlayerState(gameDay: number, gameTimeSlot: number, money: number, mood: number) {
+  const auth = getStoredAuth();
+  if (auth) {
+    auth.gameDay = gameDay;
+    auth.gameTimeSlot = gameTimeSlot;
+    auth.money = money;
+    auth.mood = mood;
     localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
   }
 }

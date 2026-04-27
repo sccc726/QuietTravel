@@ -14,6 +14,8 @@ export const players = pgTable("players", {
 	password: text().notNull(),
 	gameDay: integer("game_day").default(1),
 	gameTimeSlot: integer("game_time_slot").default(1),
+	money: integer().default(500),
+	mood: integer().default(10),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
 	unique("players_username_key").on(table.username),

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX, RotateCcw } from 'lucide-react';
-import { getStoredAuth, authHeaders, getCachedGameTime, cacheGameTime } from '@/lib/auth';
+import { getStoredAuth, authHeaders, getCachedGameTime, getCachedResources, cachePlayerState } from '@/lib/auth';
 import { TimeSlot, nextTimeSlot, timeSlotName } from '@/lib/destinations';
 import TimeTimeline from '@/components/time-timeline';
 
@@ -83,13 +83,20 @@ function TouringContent() {
   // hasImage 跟踪（每个地点最多1张图）
   const [hasImage, setHasImage] = useState(false);
 
-  // 游戏时间（初始化从 localStorage 缓存读取，避免闪烁）
-  const [gameDay, setGameDay] = useState(() => getCachedGameTime().gameDay);
-  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(() => getCachedGameTime().gameTimeSlot as TimeSlot);
-  const gameDayRef = useRef(getCachedGameTime().gameDay);
+  // 游戏时间（SSR 用默认值，客户端 mount 后从 localStorage 更新，避免 hydration mismatch）
+  const [gameDay, setGameDay] = useState(1);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
+  const gameDayRef = useRef(1);
   gameDayRef.current = gameDay;
-  const gameTimeSlotRef = useRef<TimeSlot>(getCachedGameTime().gameTimeSlot as TimeSlot);
+  const gameTimeSlotRef = useRef<TimeSlot>(1 as TimeSlot);
   gameTimeSlotRef.current = gameTimeSlot;
+  // 资源
+  const [money, setMoney] = useState(500);
+  const [mood, setMood] = useState(10);
+  const moneyRef = useRef(500);
+  moneyRef.current = money;
+  const moodRef = useRef(10);
+  moodRef.current = mood;
 
   // 事件是否全部完成
   const allDone = events.length >= totalEvents;
@@ -133,7 +140,7 @@ function TouringContent() {
     gameTimeSlotRef.current = slot;
     setGameDay(day);
     setGameTimeSlot(slot);
-    cacheGameTime(day, slot);
+    cachePlayerState(day, slot, moneyRef.current, moodRef.current);
     // 保存到服务端
     fetch('/api/progress', {
       method: 'PATCH',
@@ -197,6 +204,20 @@ function TouringContent() {
       // 静默失败
     }
   }, [destinationId]);
+
+  // 从 localStorage 缓存读取，避免页面闪烁
+  useEffect(() => {
+    const cached = getCachedGameTime();
+    setGameDay(cached.gameDay);
+    setGameTimeSlot(cached.gameTimeSlot as TimeSlot);
+    gameDayRef.current = cached.gameDay;
+    gameTimeSlotRef.current = cached.gameTimeSlot as TimeSlot;
+    const res = getCachedResources();
+    setMoney(res.money);
+    setMood(res.mood);
+    moneyRef.current = res.money;
+    moodRef.current = res.mood;
+  }, []);
 
   // ─── 背景音乐 ─────────────────────────────────────
 
@@ -341,7 +362,7 @@ function TouringContent() {
           setGameTimeSlot(newSlot);
           setGameDay(gameDayRef.current);
           // 缓存游戏时间到 localStorage
-          cacheGameTime(gameDayRef.current, newSlot);
+          cachePlayerState(gameDayRef.current, newSlot, moneyRef.current, moodRef.current);
           // 保存状态（setTimeout 确保在 setEvents 生效后执行）
           setTimeout(() => {
             saveTouringState();
@@ -383,12 +404,21 @@ function TouringContent() {
         if (data.gameDay !== undefined) {
           setGameDay(data.gameDay);
           gameDayRef.current = data.gameDay;
-          cacheGameTime(data.gameDay, data.gameTimeSlot ?? 1);
         }
         if (data.gameTimeSlot !== undefined) {
           setGameTimeSlot(data.gameTimeSlot as TimeSlot);
           gameTimeSlotRef.current = data.gameTimeSlot as TimeSlot;
         }
+        // 加载资源
+        if (data.money !== undefined) setMoney(data.money);
+        if (data.mood !== undefined) setMood(data.mood);
+        // 缓存
+        cachePlayerState(
+          data.gameDay ?? 1,
+          data.gameTimeSlot ?? 1,
+          data.money ?? 500,
+          data.mood ?? 10,
+        );
 
         const state: TouringState | null = data.progress?.[destinationId]?.touringState ?? null;
 
@@ -812,7 +842,7 @@ function TouringContent() {
 
       {/* 时间线 */}
       <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
-        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
+        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} money={money} mood={mood} />
       </div>
 
       {/* 主内容 */}
