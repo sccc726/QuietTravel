@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedAttractions, getCachedCheckins } from '@/lib/destination-cache';
+import { TimeSlot, timeSlotName, timeSlotDescription } from '@/lib/destinations';
 
 export async function POST(request: NextRequest) {
   try {
-    const { destinationId, destinationName, placeId, previousEvents, hasImage } = await request.json();
+    const { destinationId, destinationName, placeId, previousEvents, hasImage, timeSlot } = await request.json();
 
     if (!destinationId || !placeId) {
       return NextResponse.json({ error: '参数缺失' }, { status: 400 });
@@ -53,6 +54,11 @@ export async function POST(request: NextRequest) {
     }
     if (previousEvents && previousEvents.length > 0) {
       contextParts.push(`之前已发生的事件：\n${previousEvents.map((e: string, i: number) => `${i + 1}. ${e}`).join('\n')}`);
+    }
+    // 时间段上下文
+    if (timeSlot !== undefined && timeSlot !== null) {
+      const slot = timeSlot as TimeSlot;
+      contextParts.push(`当前时段：${timeSlotName(slot)}（${timeSlotDescription(slot)}）`);
     }
 
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);

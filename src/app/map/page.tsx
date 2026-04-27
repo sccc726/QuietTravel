@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect, useRef, Suspense, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { type Destination, type PlaceItem, destinationSlug } from '@/lib/destinations';
+import { type Destination, type PlaceItem, type TimeSlot, destinationSlug } from '@/lib/destinations';
+import TimeTimeline from '@/components/time-timeline';
 import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
 import { getStoredAuth, authHeaders, clearAuth } from '@/lib/auth';
 
@@ -104,6 +105,9 @@ function MapPageContent() {
   const [displayName, setDisplayName] = useState('');
   // 各地点的游览状态（用于判断是否跳过确认页）
   const [touringStateMap, setTouringStateMap] = useState<Record<string, TouringStateSummary>>({});
+  // 游戏时间
+  const [gameDay, setGameDay] = useState(1);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1);
 
   // 获取地点状态标签
   const getPlaceStatus = useCallback((placeId: string, destId: string): 'touring' | 'visited' | undefined => {
@@ -225,6 +229,9 @@ function MapPageContent() {
           setVisitedMap(map);
           setTouringStateMap(tMap);
         }
+        // 加载游戏时间
+        if (data.gameDay !== undefined) setGameDay(data.gameDay);
+        if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -546,6 +553,11 @@ function MapPageContent() {
           </button>
         </div>
       </header>
+
+      {/* 时间线 */}
+      <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 z-10 shrink-0">
+        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
+      </div>
 
       {/* 地图区域 */}
       <div className="flex-1 relative">

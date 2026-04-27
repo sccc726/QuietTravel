@@ -3,8 +3,9 @@
 import { use, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, AlertTriangle } from 'lucide-react';
-import type { PlaceType } from '@/lib/destinations';
+import type { PlaceType, TimeSlot } from '@/lib/destinations';
 import { authHeaders } from '@/lib/auth';
+import TimeTimeline from '@/components/time-timeline';
 
 interface OngoingTour {
   placeId: string;
@@ -37,6 +38,9 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   const [eventCount, setEventCount] = useState<number | null>(null);
   // 同目的地未完成的游览
   const [ongoingTour, setOngoingTour] = useState<OngoingTour | null>(null);
+  // 游戏时间
+  const [gameDay, setGameDay] = useState(1);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
 
   useEffect(() => {
     const count = placeType === 'attraction'
@@ -84,6 +88,9 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
           pName = pName || '其他景点';
         }
         setOngoingTour({ placeId: ts.placeId, placeName: pName });
+        // 加载游戏时间
+        if (data.gameDay !== undefined) setGameDay(data.gameDay);
+        if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
       })
       .catch(() => {});
   }, [destinationId, placeId, placeType]);
@@ -99,7 +106,11 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
-      <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
+      {/* 时间线 */}
+      <div className="fixed top-0 left-0 right-0 flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 z-10">
+        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
+      </div>
+      <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up mt-8">
         {/* 地点标识 */}
         <div className="flex justify-center">
           <div className="w-14 h-14 rounded-full bg-accent/50 flex items-center justify-center">

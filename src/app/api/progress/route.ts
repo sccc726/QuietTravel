@@ -21,6 +21,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '查询失败' }, { status: 500 });
   }
 
+  // 获取玩家游戏时间
+  const { data: playerData } = await client
+    .from('players')
+    .select('game_day, game_time_slot')
+    .eq('id', playerId)
+    .single();
+
   // 转换为 { [slug]: { visitedPlaceIds, totalPlaces, updatedAt, touringState } } 格式
   const progress: Record<string, {
     visitedPlaceIds: string[];
@@ -37,7 +44,11 @@ export async function GET(request: NextRequest) {
     };
   }
 
-  return NextResponse.json({ progress });
+  return NextResponse.json({
+    progress,
+    gameDay: playerData?.game_day ?? 1,
+    gameTimeSlot: playerData?.game_time_slot ?? 1,
+  });
 }
 
 /** POST /api/progress — 更新某个目的地的游览进度 */
@@ -88,39 +99,56 @@ export async function PATCH(request: NextRequest) {
   const playerId = parseToken(token);
   if (!playerId) return NextResponse.json({ error: '登录已过期' }, { status: 401 });
 
-  const { destinationSlug, touringState, visitedPlaceIds } = await request.json();
+  const { destinationSlug, touringState, visitedPlaceIds, gameDay, gameTimeSlot } = await request.json();
 
-  if (!destinationSlug) {
+  if (!destinationSlug && gameDay === undefined && gameTimeSlot === undefined) {
     return NextResponse.json({ error: '参数不完整' }, { status: 400 });
   }
 
   const client = getSupabaseClient();
 
-  // 构建更新字段
-  const updateFields: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (touringState === null) {
-    updateFields.touring_state = null;
-  } else if (touringState !== undefined) {
-    updateFields.touring_state = touringState;
-  }
-  if (visitedPlaceIds !== undefined) {
-    updateFields.visited_place_ids = visitedPlaceIds;
+  // 更新目的地进度（如果有 destinationSlug）
+  if (destinationSlug) {
+    // 构建更新字段
+    const updateFields: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (touringState === null) {
+      updateFields.touring_state = null;
+    } else if (touringState !== undefined) {
+      updateFields.touring_state = touringState;
+    }
+    if (visitedPlaceIds !== undefined) {
+      updateFields.visited_place_ids = visitedPlaceIds;
+    }
+
+    const { error } = await client
+      .from('player_progress')
+      .upsert(
+        {
+          player_id: playerId,
+          destination_slug: destinationSlug,
+          ...updateFields,
+        },
+        { onConflict: 'player_id,destination_slug' }
+      );
+
+    if (error) {
+      console.error('[/api/progress PATCH] 更新失败:', error);
+      return NextResponse.json({ error: '保存失败' }, { status: 500 });
+    }
   }
 
-  const { error } = await client
-    .from('player_progress')
-    .upsert(
-      {
-        player_id: playerId,
-        destination_slug: destinationSlug,
-        ...updateFields,
-      },
-      { onConflict: 'player_id,destination_slug' }
-    );
-
-  if (error) {
-    console.error('[/api/progress PATCH] 更新失败:', error);
-    return NextResponse.json({ error: '保存失败' }, { status: 500 });
+  // 更新玩家游戏时间
+  if (gameDay !== undefined || gameTimeSlot !== undefined) {
+    const timeUpdate: Record<string, unknown> = {};
+    if (gameDay !== undefined) timeUpdate.game_day = gameDay;
+    if (gameTimeSlot !== undefined) timeUpdate.game_time_slot = gameTimeSlot;
+    const { error: timeError } = await client
+      .from('players')
+      .update(timeUpdate)
+      .eq('id', playerId);
+    if (timeError) {
+      console.error('[/api/progress PATCH] 游戏时间更新失败:', timeError);
+    }
   }
 
   return NextResponse.json({ ok: true });

@@ -12,6 +12,8 @@ export const players = pgTable("players", {
 	id: serial().primaryKey().notNull(),
 	username: text().notNull(),
 	password: text().notNull(),
+	gameDay: integer("game_day").default(1),
+	gameTimeSlot: integer("game_time_slot").default(1),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
 	unique("players_username_key").on(table.username),

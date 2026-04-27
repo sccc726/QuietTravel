@@ -41,9 +41,11 @@
 │   │   │   └── visit/
 │   │   │       ├── event/route.ts         # AI 生成游览随机事件（50-100字，30%配图）
 │   │   │       └── events-batch/route.ts  # 批量生成多条事件（恢复用，1次LLM调用）
-│   ├── components/ui/                     # Shadcn UI 组件库
+│   ├── components/
+│   │   ├── ui/                             # Shadcn UI 组件库
+│   │   └── time-timeline.tsx               # 时间线组件（9节点，棕色光点标记当前时段）
 │   ├── lib/
-│   │   ├── destinations.ts                # 核心数据结构（Destination/PlaceItem/PlaceType）
+│   │   ├── destinations.ts                # 核心数据结构（Destination/PlaceItem/PlaceType/TimeSlot）
 │   │   ├── destination-cache.ts           # Supabase 缓存（info/attractions/checkins）
 │   │   ├── auth.ts                        # 前端认证工具（localStorage token 管理）
 │   │   └── utils.ts                       # 通用工具（含 safeParseLLMJsonArray）
@@ -89,7 +91,7 @@
 
 ## 数据库表结构
 
-- `players(id, username, password, created_at)` — username UNIQUE
+- `players(id, username, password, game_day, game_time_slot, created_at)` — username UNIQUE
 - `player_progress(id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state)` — UNIQUE(player_id, destination_slug)
 - `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
 - `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
@@ -110,6 +112,18 @@
 - 密码 SHA-256 哈希 + 盐值（`elsewhere-salt:`）
 - Token: base64(`${playerId}:${timestamp}:${signature}`)，30天有效期
 - 前端 `lib/auth.ts` 管理 localStorage 中的 token
+
+## 时间系统
+
+- 9 个时段：dawn(拂晓)、morning1(清晨)、morning2(早上)、morning3(上午)、noon(中午)、afternoon(下午)、evening(傍晚)、night(晚上)、latenight(深夜)
+- 7 个常规时段组成一个日循环：清晨→晚上，之后跨天回到清晨
+- dawn 和 latenight 为预留时段，正常推进时跳过，仅通过 `triggerSpecialTime()` 激活（道具/特殊事件）
+- 玩家游戏时间存储在 `players` 表的 `game_day`(INT) 和 `game_time_slot`(INT) 列
+- 新玩家默认：第 1 天 · 清晨
+- 游览时每个随机事件推进一个时段
+- 景点不跨天（最多 3 个事件，7 时段足够）
+- 时间影响 AI 事件生成（prompt 注入时段描述）和页面色调
+- `TimeTimeline` 组件在地图页/确认页/游览页顶部常显（9 节点 + 当前时段棕色光点）
 
 ## 地图标记状态
 

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { getStoredAuth, authHeaders } from '@/lib/auth';
+import { TimeSlot, nextTimeSlot, timeSlotName } from '@/lib/destinations';
+import TimeTimeline from '@/components/time-timeline';
 
 /** 事件数据结构（含可选图片） */
 interface EventData {
@@ -81,6 +83,14 @@ function TouringContent() {
   // hasImage 跟踪（每个地点最多1张图）
   const [hasImage, setHasImage] = useState(false);
 
+  // 游戏时间
+  const [gameDay, setGameDay] = useState(1);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
+  const gameDayRef = useRef(1);
+  gameDayRef.current = gameDay;
+  const gameTimeSlotRef = useRef<TimeSlot>(1 as TimeSlot);
+  gameTimeSlotRef.current = gameTimeSlot;
+
   // 事件是否全部完成
   const allDone = events.length >= totalEvents;
 
@@ -107,6 +117,29 @@ function TouringContent() {
   // 是否已初始化（防止重复执行）
   const initializedRef = useRef(false);
   const placeNameRef = useRef(placeName);
+
+  // ─── 游戏时间推进 ─────────────────────────────────────
+
+  /** 推进游戏时间 N 步（用于批量恢复事件） */
+  const advanceGameTime = useCallback((steps: number) => {
+    let day = gameDayRef.current;
+    let slot = gameTimeSlotRef.current;
+    for (let i = 0; i < steps; i++) {
+      const next = nextTimeSlot(slot);
+      slot = next.slot;
+      if (next.newDay) day++;
+    }
+    gameDayRef.current = day;
+    gameTimeSlotRef.current = slot;
+    setGameDay(day);
+    setGameTimeSlot(slot);
+    // 保存到服务端
+    fetch('/api/progress', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ gameDay: day, gameTimeSlot: slot }),
+    }).catch(() => {});
+  }, []);
 
   // ─── 游览状态持久化 ───────────────────────────────
 
@@ -209,6 +242,7 @@ function TouringContent() {
           placeId,
           previousEvents: eventsRef.current.map(e => e.text),
           hasImage: hasImageRef.current,
+          timeSlot: gameTimeSlotRef.current,
         }),
       });
       const data = await res.json();
@@ -242,6 +276,7 @@ function TouringContent() {
           placeId,
           count,
           hasImage: hasImageRef.current,
+          timeSlot: gameTimeSlotRef.current,
         }),
       });
       const data = await res.json();
@@ -299,12 +334,14 @@ function TouringContent() {
             const next = [...prev, eventData];
             // 更新完成事件数后保存状态
             saveTouringState({ completedEvents: next.length, events: next });
+            // 推进游戏时间 1 步
+            advanceGameTime(1);
             return next;
           });
         }
       }, typingSpeed);
     },
-    [saveTouringState]
+    [saveTouringState, advanceGameTime]
   );
 
   // ─── 初始化：尝试恢复游览状态 ─────────────────────
@@ -327,6 +364,17 @@ function TouringContent() {
       try {
         const res = await fetch('/api/progress', { headers: authHeaders() });
         const data = await res.json();
+
+        // 加载游戏时间
+        if (data.gameDay !== undefined) {
+          setGameDay(data.gameDay);
+          gameDayRef.current = data.gameDay;
+        }
+        if (data.gameTimeSlot !== undefined) {
+          setGameTimeSlot(data.gameTimeSlot as TimeSlot);
+          gameTimeSlotRef.current = data.gameTimeSlot as TimeSlot;
+        }
+
         const state: TouringState | null = data.progress?.[destinationId]?.touringState ?? null;
 
         if (!state || state.placeId !== placeId || state.destinationId !== destinationId) {
@@ -430,6 +478,8 @@ function TouringContent() {
           }
           setEvents(finalEvents);
           setMode('completed');
+          // 推进游戏时间（按生成的事件数量）
+          advanceGameTime(finalEvents.length);
           // 保存完成状态
           await saveTouringState({ completed: true, completedEvents: state.totalEvents, events: finalEvents });
           // 保存游记到 visit_journals 表
@@ -453,6 +503,8 @@ function TouringContent() {
           const batchEvents = await fetchBatchEvents(missedCount);
           const restoredEvents = [...(state.events ?? []), ...batchEvents];
           setEvents(restoredEvents);
+          // 推进游戏时间（按生成的事件数量）
+          advanceGameTime(missedCount);
         }
 
         setMode('active');
@@ -499,7 +551,7 @@ function TouringContent() {
     };
 
     tryRestore();
-  }, [destinationId, placeId, destinationName, fetchNextEvent, startWaiting, fetchBatchEvents, saveTouringState]);
+  }, [destinationId, placeId, destinationName, fetchNextEvent, startWaiting, fetchBatchEvents, saveTouringState, advanceGameTime]);
 
   // ─── 倒计时 ───────────────────────────────────────
 
@@ -742,6 +794,11 @@ function TouringContent() {
           {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
         </button>
       </header>
+
+      {/* 时间线 */}
+      <div className="flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
+        <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
+      </div>
 
       {/* 主内容 */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">

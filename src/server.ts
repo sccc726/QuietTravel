@@ -83,6 +83,10 @@ async function verifyDatabase() {
       END IF;
     END $$`);
 
+    // players 表新增 game_day 和 game_time_slot 列
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS game_day INTEGER DEFAULT 1`);
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS game_time_slot INTEGER DEFAULT 1`);
+
     await client.end();
     console.log('[verifyDatabase] 数据库验证完成');
   } catch (err) {

@@ -169,14 +169,19 @@ export default function MapInner({
     const dest = destinations.find(d => d.id === selectedId);
     if (dest) {
       const targetZoom = 10;
+      const crs = map.options.crs;
+      if (!crs) {
+        map.flyTo([dest.coordinates.lat, dest.coordinates.lng], targetZoom, { duration: 1.2 });
+        return;
+      }
       const offset = map.getContainer().clientHeight / 2 - 120;
       // 在目标 zoom 下将光点坐标转为像素，Y 轴向下偏移后转回经纬度
       // 这样该点飞到容器中心时，光点正好在顶部 ~120px
-      const destPoint = map.options.crs.latLngToPoint(
+      const destPoint = crs.latLngToPoint(
         L.latLng(dest.coordinates.lat, dest.coordinates.lng), targetZoom
       );
       const adjustedPoint = L.point(destPoint.x, destPoint.y + offset);
-      const adjustedLatLng = map.options.crs.pointToLatLng(adjustedPoint, targetZoom);
+      const adjustedLatLng = crs.pointToLatLng(adjustedPoint, targetZoom);
       map.flyTo(adjustedLatLng, targetZoom, { duration: 1.2 });
     }
   }, [selectedId, destinations]);

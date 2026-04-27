@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getCachedAttractions, getCachedCheckins } from '@/lib/destination-cache';
 import { safeParseLLMJsonArray } from '@/lib/utils';
+import { TimeSlot, timeSlotName, timeSlotDescription, getUpcomingSlots } from '@/lib/destinations';
 
 /** POST /api/visit/events-batch — 批量生成多条随机事件（1 次 LLM 调用） */
 export async function POST(request: NextRequest) {
   try {
-    const { destinationId, destinationName, placeId, count, hasImage } = await request.json();
+    const { destinationId, destinationName, placeId, count, hasImage, timeSlot } = await request.json();
     if (!destinationId || !placeId || !count || count < 1) {
       return NextResponse.json({ error: '参数不完整' }, { status: 400 });
     }
@@ -34,6 +35,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 构建时间段描述
+    let timeSlotDesc = '';
+    if (timeSlot !== undefined && timeSlot !== null) {
+      const slots = getUpcomingSlots(timeSlot as TimeSlot, count as number);
+      timeSlotDesc = `\n各事件时段：${slots.map((s, i) => `第${i + 1}条-${timeSlotName(s)}（${timeSlotDescription(s)}）`).join('；')}`;
+    }
+
     // 批量生成 N 条事件（1 次 LLM 调用）
     const messages = [
       {
@@ -44,6 +52,7 @@ export async function POST(request: NextRequest) {
 - 风格安静、有画面感、带一点诗意
 - 偶尔提及当地的细节（食物、声音、气味等）
 - 不要重复场景
+- 各条见闻要符合对应时段的氛围（如清晨安静、中午热闹、晚上灯光）
 - 严格返回 JSON 数组，每个元素是一个字符串（见闻文本）
 - 只返回 JSON 数组，不要其他文字`,
       },
@@ -51,7 +60,7 @@ export async function POST(request: NextRequest) {
         role: 'user' as const,
         content: `目的地：${destinationName ?? '某处'}
 地点：${placeName}
-${placeDesc ? `地点简介：${placeDesc}` : ''}
+${placeDesc ? `地点简介：${placeDesc}` : ''}${timeSlotDesc}
 请生成 ${count} 条旅途见闻。`,
       },
     ];
