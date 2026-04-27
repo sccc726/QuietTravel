@@ -11,7 +11,6 @@ interface TimeTimelineProps {
 
 /** 时间线组件 — 9 个节点，当前时段有棕色光点，全部使用两字标注 */
 export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTimelineProps) {
-  // 两字标签映射
   const labels: Record<TimeSlot, string> = {
     [TimeSlot.dawn]: '拂晓',
     [TimeSlot.morning1]: '清晨',
@@ -24,6 +23,8 @@ export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTim
     [TimeSlot.latenight]: '深夜',
   };
 
+  const LINE_W = 20;
+
   return (
     <div className="flex flex-col items-center gap-1">
       {!compact && (
@@ -31,38 +32,28 @@ export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTim
           第{day}天 · {timeSlotName(timeSlot)}
         </div>
       )}
-      <div className="flex items-center gap-0">
+
+      {/* 圆点行 — 连线与圆点中心对齐 */}
+      <div className="flex items-center">
         {ALL_TIME_SLOTS.map((slot, idx) => {
           const isCurrent = slot === timeSlot;
           const isPast = slot < timeSlot;
           const isSpecial = isSpecialSlot(slot);
-
-          // 节点尺寸
           const nodeSize = isSpecial ? 5 : 7;
-          // 当前时段的光点尺寸
           const glowSize = isSpecial ? 12 : 16;
 
           return (
             <div key={slot} className="flex items-center">
-              {/* 连线 — 第一个节点前不画线 */}
               {idx > 0 && (
-                <div
-                  className="h-px bg-muted-foreground/15"
-                  style={{ width: 14 }}
-                />
+                <div className="h-px bg-muted-foreground/15" style={{ width: LINE_W }} />
               )}
-              {/* 节点 */}
-              <div className="relative flex flex-col items-center">
-                {/* 光点（仅当前时段） */}
+              <div className="relative flex items-center justify-center" style={{ width: nodeSize, height: nodeSize }}>
                 {isCurrent && (
                   <div
                     className="absolute rounded-full animate-pulse"
                     style={{
                       width: glowSize,
                       height: glowSize,
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
                       background: 'oklch(0.55 0.10 60 / 25%)',
                     }}
                   />
@@ -81,15 +72,32 @@ export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTim
                       ? 'none'
                       : isPast
                         ? 'none'
-                        : `${isSpecial ? 1 : 1}px solid oklch(0.70 0.02 90 / 50%)`,
+                        : '1px solid oklch(0.70 0.02 90 / 50%)',
                     boxShadow: isCurrent
                       ? '0 0 6px oklch(0.45 0.08 55 / 50%)'
                       : 'none',
                   }}
                 />
-                {/* 两字标签 */}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 标签行 — 与圆点行对齐 */}
+      <div className="flex items-start">
+        {ALL_TIME_SLOTS.map((slot, idx) => {
+          const isCurrent = slot === timeSlot;
+          const isPast = slot < timeSlot;
+          const isSpecial = isSpecialSlot(slot);
+          const nodeSize = isSpecial ? 5 : 7;
+
+          return (
+            <div key={slot} className="flex items-start">
+              {idx > 0 && <div style={{ width: LINE_W }} />}
+              <div style={{ width: nodeSize }} className="flex justify-center">
                 <span
-                  className="mt-0.5 leading-none select-none"
+                  className="leading-none select-none"
                   style={{
                     fontSize: isSpecial ? 8 : 9,
                     fontFamily: 'var(--font-serif)',
