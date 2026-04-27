@@ -95,9 +95,9 @@ export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTim
           return (
             <div key={slot} className="flex items-start">
               {idx > 0 && <div style={{ width: LINE_W }} />}
-              <div style={{ width: nodeSize }} className="flex justify-center">
+              <div className="flex justify-center" style={{ width: nodeSize }}>
                 <span
-                  className="leading-none select-none"
+                  className="leading-none select-none whitespace-nowrap"
                   style={{
                     fontSize: isSpecial ? 8 : 9,
                     fontFamily: 'var(--font-serif)',
