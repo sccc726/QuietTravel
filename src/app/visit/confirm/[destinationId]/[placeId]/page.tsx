@@ -109,12 +109,13 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
-      {/* 时间线 */}
-      <div className="fixed top-0 left-0 right-0 flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 z-10">
+    <div className="min-h-screen bg-background flex flex-col items-center px-6">
+      {/* 时间线 — 与地图页/游览页同位置 */}
+      <div className="w-full flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
         <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
       </div>
-      <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up mt-8">
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        <div className="max-w-sm w-full text-center space-y-8 animate-fade-in-up">
         {/* 地点标识 */}
         <div className="flex justify-center">
           <div className="w-14 h-14 rounded-full bg-accent/50 flex items-center justify-center">
@@ -194,6 +195,7 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
