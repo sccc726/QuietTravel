@@ -6,6 +6,8 @@ interface AuthData {
   token: string;
   playerId: number;
   username: string;
+  gameDay?: number;
+  gameTimeSlot?: number;
 }
 
 /** 读取本地存储的认证信息 */
@@ -34,6 +36,25 @@ export function authHeaders(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth) return {};
   return { Authorization: `Bearer ${auth.token}` };
+}
+
+/** 从本地缓存读取游戏时间（避免页面切换时闪烁） */
+export function getCachedGameTime(): { gameDay: number; gameTimeSlot: number } {
+  const auth = getStoredAuth();
+  return {
+    gameDay: auth?.gameDay ?? 1,
+    gameTimeSlot: auth?.gameTimeSlot ?? 1,
+  };
+}
+
+/** 更新本地缓存的游戏时间 */
+export function cacheGameTime(gameDay: number, gameTimeSlot: number) {
+  const auth = getStoredAuth();
+  if (auth) {
+    auth.gameDay = gameDay;
+    auth.gameTimeSlot = gameTimeSlot;
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  }
 }
 
 /** 检查是否已登录，未登录则跳转首页 */

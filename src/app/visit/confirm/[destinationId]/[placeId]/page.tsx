@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, AlertTriangle } from 'lucide-react';
 import type { PlaceType, TimeSlot } from '@/lib/destinations';
-import { authHeaders } from '@/lib/auth';
+import { authHeaders, getCachedGameTime, cacheGameTime } from '@/lib/auth';
 import TimeTimeline from '@/components/time-timeline';
 
 interface OngoingTour {
@@ -38,9 +38,9 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
   const [eventCount, setEventCount] = useState<number | null>(null);
   // 同目的地未完成的游览
   const [ongoingTour, setOngoingTour] = useState<OngoingTour | null>(null);
-  // 游戏时间
-  const [gameDay, setGameDay] = useState(1);
-  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
+  // 游戏时间（初始化从 localStorage 缓存读取，避免闪烁）
+  const [gameDay, setGameDay] = useState(() => getCachedGameTime().gameDay);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(() => getCachedGameTime().gameTimeSlot as TimeSlot);
 
   useEffect(() => {
     const count = placeType === 'attraction'
@@ -53,7 +53,10 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
       .then(res => res.json())
       .then(async data => {
         // 加载游戏时间（无论是否有 progress 都要加载）
-        if (data.gameDay !== undefined) setGameDay(data.gameDay);
+        if (data.gameDay !== undefined) {
+          setGameDay(data.gameDay);
+          cacheGameTime(data.gameDay, data.gameTimeSlot ?? 1);
+        }
         if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
 
         if (!data.progress) return;

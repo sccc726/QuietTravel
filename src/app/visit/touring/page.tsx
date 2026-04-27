@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Footprints, FastForward, Volume2, VolumeX, RotateCcw } from 'lucide-react';
-import { getStoredAuth, authHeaders } from '@/lib/auth';
+import { getStoredAuth, authHeaders, getCachedGameTime, cacheGameTime } from '@/lib/auth';
 import { TimeSlot, nextTimeSlot, timeSlotName } from '@/lib/destinations';
 import TimeTimeline from '@/components/time-timeline';
 
@@ -83,12 +83,12 @@ function TouringContent() {
   // hasImage 跟踪（每个地点最多1张图）
   const [hasImage, setHasImage] = useState(false);
 
-  // 游戏时间
-  const [gameDay, setGameDay] = useState(1);
-  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1 as TimeSlot);
-  const gameDayRef = useRef(1);
+  // 游戏时间（初始化从 localStorage 缓存读取，避免闪烁）
+  const [gameDay, setGameDay] = useState(() => getCachedGameTime().gameDay);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(() => getCachedGameTime().gameTimeSlot as TimeSlot);
+  const gameDayRef = useRef(getCachedGameTime().gameDay);
   gameDayRef.current = gameDay;
-  const gameTimeSlotRef = useRef<TimeSlot>(1 as TimeSlot);
+  const gameTimeSlotRef = useRef<TimeSlot>(getCachedGameTime().gameTimeSlot as TimeSlot);
   gameTimeSlotRef.current = gameTimeSlot;
 
   // 事件是否全部完成
@@ -133,6 +133,7 @@ function TouringContent() {
     gameTimeSlotRef.current = slot;
     setGameDay(day);
     setGameTimeSlot(slot);
+    cacheGameTime(day, slot);
     // 保存到服务端
     fetch('/api/progress', {
       method: 'PATCH',
@@ -339,6 +340,8 @@ function TouringContent() {
           if (newDay) gameDayRef.current = gameDayRef.current + 1;
           setGameTimeSlot(newSlot);
           setGameDay(gameDayRef.current);
+          // 缓存游戏时间到 localStorage
+          cacheGameTime(gameDayRef.current, newSlot);
           // 保存状态（setTimeout 确保在 setEvents 生效后执行）
           setTimeout(() => {
             saveTouringState();
@@ -380,6 +383,7 @@ function TouringContent() {
         if (data.gameDay !== undefined) {
           setGameDay(data.gameDay);
           gameDayRef.current = data.gameDay;
+          cacheGameTime(data.gameDay, data.gameTimeSlot ?? 1);
         }
         if (data.gameTimeSlot !== undefined) {
           setGameTimeSlot(data.gameTimeSlot as TimeSlot);

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { getStoredAuth, storeAuth } from '@/lib/auth';
+import { getStoredAuth, storeAuth, cacheGameTime } from '@/lib/auth';
 import { checkActiveTouring } from '@/lib/touring-resume';
 
 export default function CharacterCreatePage() {
@@ -98,11 +98,13 @@ export default function CharacterCreatePage() {
         return;
       }
 
-      // 保存认证信息
+      // 保存认证信息（含游戏时间）
       storeAuth({
         token: data.token,
         playerId: data.player.id,
         username: data.player.username,
+        gameDay: data.gameDay,
+        gameTimeSlot: data.gameTimeSlot,
       });
 
       setIsNewUser(data.mode === 'register');

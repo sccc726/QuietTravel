@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { type Destination, type PlaceItem, type TimeSlot, destinationSlug } from '@/lib/destinations';
 import TimeTimeline from '@/components/time-timeline';
 import { ArrowLeft, MapPin, Camera, Landmark, Search, Loader2, X } from 'lucide-react';
-import { getStoredAuth, authHeaders, clearAuth } from '@/lib/auth';
+import { getStoredAuth, authHeaders, clearAuth, getCachedGameTime, cacheGameTime } from '@/lib/auth';
 
 /** 游览状态摘要（从服务端 touringState 提取，用于判断是否跳过确认页） */
 interface TouringStateSummary {
@@ -105,9 +105,9 @@ function MapPageContent() {
   const [displayName, setDisplayName] = useState('');
   // 各地点的游览状态（用于判断是否跳过确认页）
   const [touringStateMap, setTouringStateMap] = useState<Record<string, TouringStateSummary>>({});
-  // 游戏时间
-  const [gameDay, setGameDay] = useState(1);
-  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(1);
+  // 游戏时间（初始化从 localStorage 缓存读取，避免闪烁）
+  const [gameDay, setGameDay] = useState(() => getCachedGameTime().gameDay);
+  const [gameTimeSlot, setGameTimeSlot] = useState<TimeSlot>(() => getCachedGameTime().gameTimeSlot as TimeSlot);
 
   // 获取地点状态标签
   const getPlaceStatus = useCallback((placeId: string, destId: string): 'touring' | 'visited' | undefined => {
@@ -230,7 +230,10 @@ function MapPageContent() {
           setTouringStateMap(tMap);
         }
         // 加载游戏时间
-        if (data.gameDay !== undefined) setGameDay(data.gameDay);
+        if (data.gameDay !== undefined) {
+          setGameDay(data.gameDay);
+          cacheGameTime(data.gameDay, data.gameTimeSlot ?? 1);
+        }
         if (data.gameTimeSlot !== undefined) setGameTimeSlot(data.gameTimeSlot as TimeSlot);
       })
       .catch(() => {});
