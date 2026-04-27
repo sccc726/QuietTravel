@@ -35,10 +35,10 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
         </div>
       )}
 
-      {/* 圆点行 — 心境(左) + 时间线圆点(中) + 金钱(右) */}
-      <div className="flex items-center gap-3 w-full justify-center">
-        {/* 心境 — 左侧 */}
-        {mood !== undefined && (
+      {/* 圆点行 — 心境(左贴边) + 时间线圆点(居中) + 金钱(右贴边) */}
+      <div className="flex items-center w-full">
+        {/* 心境 — 左侧贴边 */}
+        {mood !== undefined ? (
           <div className="flex items-center gap-0.5 shrink-0" title="心境">
             <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 340 / 70%)' }}>
               ♥
@@ -47,10 +47,10 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
               {mood}
             </span>
           </div>
-        )}
+        ) : <div />}
 
-        {/* 时间线圆点 */}
-        <div className="flex items-center">
+        {/* 时间线圆点 — 居中 */}
+        <div className="flex-1 flex items-center justify-center">
           {ALL_TIME_SLOTS.map((slot, idx) => {
             const isCurrent = slot === timeSlot;
             const isPast = slot < timeSlot;
@@ -100,8 +100,8 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
           })}
         </div>
 
-        {/* 金钱 — 右侧 */}
-        {money !== undefined && (
+        {/* 金钱 — 右侧贴边 */}
+        {money !== undefined ? (
           <div className="flex items-center gap-0.5 shrink-0" title="金钱">
             <span className="text-[9px] leading-none" style={{ fontFamily: 'var(--font-serif)', color: 'oklch(0.6 0.08 85 / 70%)' }}>
               ◆
@@ -110,7 +110,7 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
               {money}
             </span>
           </div>
-        )}
+        ) : <div />}
       </div>
 
       {/* 标签行 */}
