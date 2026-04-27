@@ -35,7 +35,7 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
         </div>
       )}
 
-      {/* 圆点行 — 心境(左贴边) + 弹性间隔 + 时间线圆点(居中) + 弹性间隔 + 金钱(右贴边) */}
+      {/* 圆点行 — 心境(左贴边) + 弹性间隔 + 时间线(居中) + 弹性间隔 + 金钱(右贴边) */}
       <div className="flex items-center w-full">
         {/* 心境 — 左侧贴边 */}
         <div className="shrink-0" title="心境">
@@ -54,55 +54,91 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
         {/* 左弹性间隔 */}
         <div className="flex-1 min-w-2" />
 
-        {/* 时间线圆点 — 居中 */}
-        <div className="shrink-0 flex items-center">
-          {ALL_TIME_SLOTS.map((slot, idx) => {
-            const isCurrent = slot === timeSlot;
-            const isPast = slot < timeSlot;
-            const isSpecial = isSpecialSlot(slot);
-            const nodeSize = isSpecial ? 5 : 7;
-            const glowSize = isSpecial ? 12 : 16;
+        {/* 时间线 — 圆点+标签同容器居中 */}
+        <div className="shrink-0 flex flex-col items-center gap-0.5">
+          {/* 圆点+连线行 */}
+          <div className="flex items-center">
+            {ALL_TIME_SLOTS.map((slot, idx) => {
+              const isCurrent = slot === timeSlot;
+              const isPast = slot < timeSlot;
+              const isSpecial = isSpecialSlot(slot);
+              const nodeSize = isSpecial ? 5 : 7;
+              const glowSize = isSpecial ? 12 : 16;
 
-            return (
-              <div key={slot} className="flex items-center">
-                {idx > 0 && (
-                  <div className="h-px bg-muted-foreground/15" style={{ width: LINE_W }} />
-                )}
-                <div className="relative flex items-center justify-center" style={{ width: nodeSize, height: nodeSize }}>
-                  {isCurrent && (
+              return (
+                <div key={slot} className="flex items-center">
+                  {idx > 0 && (
+                    <div className="h-px bg-muted-foreground/15" style={{ width: LINE_W }} />
+                  )}
+                  <div className="relative flex items-center justify-center" style={{ width: nodeSize, height: nodeSize }}>
+                    {isCurrent && (
+                      <div
+                        className="absolute rounded-full animate-pulse"
+                        style={{
+                          width: glowSize,
+                          height: glowSize,
+                          background: 'oklch(0.55 0.10 60 / 25%)',
+                        }}
+                      />
+                    )}
                     <div
-                      className="absolute rounded-full animate-pulse"
+                      className="relative rounded-full transition-all duration-300"
                       style={{
-                        width: glowSize,
-                        height: glowSize,
-                        background: 'oklch(0.55 0.10 60 / 25%)',
+                        width: nodeSize,
+                        height: nodeSize,
+                        background: isCurrent
+                          ? 'oklch(0.45 0.08 55)'
+                          : isPast
+                            ? 'oklch(0.65 0.02 90)'
+                            : 'transparent',
+                        border: isCurrent
+                          ? 'none'
+                          : isPast
+                            ? 'none'
+                            : '1px solid oklch(0.70 0.02 90 / 50%)',
+                        boxShadow: isCurrent
+                          ? '0 0 6px oklch(0.45 0.08 55 / 50%)'
+                          : 'none',
                       }}
                     />
-                  )}
-                  <div
-                    className="relative rounded-full transition-all duration-300"
-                    style={{
-                      width: nodeSize,
-                      height: nodeSize,
-                      background: isCurrent
-                        ? 'oklch(0.45 0.08 55)'
-                        : isPast
-                          ? 'oklch(0.65 0.02 90)'
-                          : 'transparent',
-                      border: isCurrent
-                        ? 'none'
-                        : isPast
-                          ? 'none'
-                          : '1px solid oklch(0.70 0.02 90 / 50%)',
-                      boxShadow: isCurrent
-                        ? '0 0 6px oklch(0.45 0.08 55 / 50%)'
-                        : 'none',
-                    }}
-                  />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* 标签行 */}
+          <div className="flex items-start">
+            {ALL_TIME_SLOTS.map((slot, idx) => {
+              const isCurrent = slot === timeSlot;
+              const isPast = slot < timeSlot;
+              const isSpecial = isSpecialSlot(slot);
+              const nodeSize = isSpecial ? 5 : 7;
+
+              return (
+                <div key={slot} className="flex items-start">
+                  {idx > 0 && <div style={{ width: LINE_W }} />}
+                  <div className="flex justify-center" style={{ width: nodeSize }}>
+                    <span
+                      className="leading-none select-none whitespace-nowrap"
+                      style={{
+                        fontSize: isSpecial ? 8 : 9,
+                        fontFamily: 'var(--font-serif)',
+                        letterSpacing: '0.02em',
+                        color: isCurrent
+                          ? 'oklch(0.45 0.08 55)'
+                          : isPast
+                            ? 'oklch(0.65 0.02 90 / 60%)'
+                            : 'oklch(0.70 0.02 90 / 35%)',
+                      }}
+                    >
+                      {labels[slot]}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* 右弹性间隔 */}
@@ -121,39 +157,6 @@ export default function TimeTimeline({ day, timeSlot, money, mood, compact = fal
             </div>
           ) : <div className="w-0" />}
         </div>
-      </div>
-
-      {/* 标签行 */}
-      <div className="flex items-start">
-        {ALL_TIME_SLOTS.map((slot, idx) => {
-          const isCurrent = slot === timeSlot;
-          const isPast = slot < timeSlot;
-          const isSpecial = isSpecialSlot(slot);
-          const nodeSize = isSpecial ? 5 : 7;
-
-          return (
-            <div key={slot} className="flex items-start">
-              {idx > 0 && <div style={{ width: LINE_W }} />}
-              <div className="flex justify-center" style={{ width: nodeSize }}>
-                <span
-                  className="leading-none select-none whitespace-nowrap"
-                  style={{
-                    fontSize: isSpecial ? 8 : 9,
-                    fontFamily: 'var(--font-serif)',
-                    letterSpacing: '0.02em',
-                    color: isCurrent
-                      ? 'oklch(0.45 0.08 55)'
-                      : isPast
-                        ? 'oklch(0.65 0.02 90 / 60%)'
-                        : 'oklch(0.70 0.02 90 / 35%)',
-                  }}
-                >
-                  {labels[slot]}
-                </span>
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
