@@ -796,7 +796,7 @@ function TouringContent() {
           <span style={{ fontFamily: 'var(--font-serif)' }}>返回地图</span>
         </button>
         <h1
-          className="text-sm font-light tracking-[0.08em] text-foreground/70"
+          className="text-base font-light tracking-[0.1em] text-foreground/80"
           style={{ fontFamily: 'var(--font-serif)' }}
         >
           {mode === 'completed' ? '游记' : mode === 'finished' ? '游记' : '游览中'}

@@ -110,14 +110,22 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* 顶部占位 — 与地图页 header 等高，保持时间线位置一致 */}
-      <div className="w-full flex items-center justify-between px-6 py-3 border-b border-border/40 shrink-0">
+      {/* 顶部 — 与地图页/游览页 header 统一结构 */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-border/40 shrink-0">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground/60 transition-colors duration-300"
         >
           <ArrowLeft className="w-4 h-4" />
+          <span style={{ fontFamily: 'var(--font-serif)' }}>返回</span>
         </button>
+        <h1
+          className="text-base font-light tracking-[0.1em] text-foreground/80"
+          style={{ fontFamily: 'var(--font-serif)' }}
+        >
+          出发确认
+        </h1>
+        <div className="w-16" /> {/* 右侧占位，保持标题居中 */}
       </div>
 
       {/* 时间线 — 与地图页/游览页同位置 */}
