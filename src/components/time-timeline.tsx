@@ -1,18 +1,29 @@
 'use client';
 
-import { TimeSlot, timeSlotName, timeSlotShortName, isSpecialSlot, ALL_TIME_SLOTS } from '@/lib/destinations';
+import { TimeSlot, timeSlotName, isSpecialSlot, ALL_TIME_SLOTS } from '@/lib/destinations';
 
 interface TimeTimelineProps {
   day: number;
   timeSlot: TimeSlot;
-  /** 是否显示完整名称（默认显示简称） */
-  fullNames?: boolean;
   /** 紧凑模式，不显示天数文字 */
   compact?: boolean;
 }
 
-/** 时间线组件 — 9 个节点，当前时段有棕色光点 */
-export default function TimeTimeline({ day, timeSlot, fullNames = false, compact = false }: TimeTimelineProps) {
+/** 时间线组件 — 9 个节点，当前时段有棕色光点，全部使用两字标注 */
+export default function TimeTimeline({ day, timeSlot, compact = false }: TimeTimelineProps) {
+  // 两字标签映射
+  const labels: Record<TimeSlot, string> = {
+    [TimeSlot.dawn]: '拂晓',
+    [TimeSlot.morning1]: '清晨',
+    [TimeSlot.morning2]: '早上',
+    [TimeSlot.morning3]: '上午',
+    [TimeSlot.noon]: '中午',
+    [TimeSlot.afternoon]: '下午',
+    [TimeSlot.evening]: '傍晚',
+    [TimeSlot.night]: '晚上',
+    [TimeSlot.latenight]: '深夜',
+  };
+
   return (
     <div className="flex flex-col items-center gap-1">
       {!compact && (
@@ -23,15 +34,13 @@ export default function TimeTimeline({ day, timeSlot, fullNames = false, compact
       <div className="flex items-center gap-0">
         {ALL_TIME_SLOTS.map((slot, idx) => {
           const isCurrent = slot === timeSlot;
-          const isPast = slot < timeSlot || (isSpecialSlot(timeSlot) && slot < timeSlot);
+          const isPast = slot < timeSlot;
           const isSpecial = isSpecialSlot(slot);
-          const isDawn = slot === TimeSlot.dawn;
-          const isLatenight = slot === TimeSlot.latenight;
 
           // 节点尺寸
-          const nodeSize = isSpecial ? 6 : 8;
+          const nodeSize = isSpecial ? 5 : 7;
           // 当前时段的光点尺寸
-          const glowSize = isSpecial ? 14 : 18;
+          const glowSize = isSpecial ? 12 : 16;
 
           return (
             <div key={slot} className="flex items-center">
@@ -39,7 +48,7 @@ export default function TimeTimeline({ day, timeSlot, fullNames = false, compact
               {idx > 0 && (
                 <div
                   className="h-px bg-muted-foreground/15"
-                  style={{ width: isSpecial ? 8 : 12 }}
+                  style={{ width: 14 }}
                 />
               )}
               {/* 节点 */}
@@ -63,9 +72,6 @@ export default function TimeTimeline({ day, timeSlot, fullNames = false, compact
                   style={{
                     width: nodeSize,
                     height: nodeSize,
-                    // 当前时段：棕色实心 + 光晕
-                    // 已过时段：实心灰色
-                    // 未到时段：空心描边
                     background: isCurrent
                       ? 'oklch(0.45 0.08 55)'
                       : isPast
@@ -81,12 +87,13 @@ export default function TimeTimeline({ day, timeSlot, fullNames = false, compact
                       : 'none',
                   }}
                 />
-                {/* 标签 — 仅常规时段显示，额外时段也显示 */}
+                {/* 两字标签 */}
                 <span
                   className="mt-0.5 leading-none select-none"
                   style={{
                     fontSize: isSpecial ? 8 : 9,
                     fontFamily: 'var(--font-serif)',
+                    letterSpacing: '0.02em',
                     color: isCurrent
                       ? 'oklch(0.45 0.08 55)'
                       : isPast
@@ -94,7 +101,7 @@ export default function TimeTimeline({ day, timeSlot, fullNames = false, compact
                         : 'oklch(0.70 0.02 90 / 35%)',
                   }}
                 >
-                  {fullNames ? timeSlotName(slot) : timeSlotShortName(slot)}
+                  {labels[slot]}
                 </span>
               </div>
             </div>
