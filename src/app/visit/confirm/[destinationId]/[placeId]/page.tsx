@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MapPin, AlertTriangle } from 'lucide-react';
+import { MapPin, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { PlaceType, TimeSlot } from '@/lib/destinations';
 import { authHeaders, getCachedGameTime, cacheGameTime } from '@/lib/auth';
 import TimeTimeline from '@/components/time-timeline';
@@ -110,6 +110,16 @@ export default function VisitConfirmPage({ params }: ConfirmPageProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-6">
+      {/* 顶部占位 — 与地图页 header 等高，保持时间线位置一致 */}
+      <div className="w-full flex items-center px-6 py-3 shrink-0">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground/60 hover:text-foreground/70 transition-colors duration-300"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* 时间线 — 与地图页/游览页同位置 */}
       <div className="w-full flex justify-center py-1.5 bg-background/80 backdrop-blur-sm border-b border-border/20 shrink-0">
         <TimeTimeline day={gameDay} timeSlot={gameTimeSlot} />
