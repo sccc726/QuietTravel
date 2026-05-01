@@ -1,4 +1,4 @@
-# 别处 · Elsewhere (Demo) — 项目上下文
+# 别处 · Elsewhere — 项目上下文
 
 ### 版本技术栈
 
@@ -43,18 +43,19 @@
 │   │   │       └── events-batch/route.ts  # 批量生成多条事件（恢复用，1次LLM调用）
 │   ├── components/
 │   │   ├── ui/                             # Shadcn UI 组件库
-│   │   └── time-timeline.tsx               # 时间线组件（9节点，棕色光点标记当前时段）
+│   │   └── time-timeline.tsx               # 时间线组件（9节点+心境♥+金钱◆）
 │   ├── lib/
-│   │   ├── destinations.ts                # 核心数据结构（Destination/PlaceItem/PlaceType/TimeSlot）
+│   │   ├── destinations.ts                # 核心数据结构（Destination/PlaceItem/TimeSlot/时间系统）
 │   │   ├── destination-cache.ts           # Supabase 缓存（info/attractions/checkins）
-│   │   ├── auth.ts                        # 前端认证工具（localStorage token 管理）
+│   │   ├── auth.ts                        # 前端认证工具（localStorage token+状态缓存管理）
+│   │   ├── travel.ts                      # 旅行计算逻辑（距离/费用/耗时/出行方式配置）
 │   │   └── utils.ts                       # 通用工具（含 safeParseLLMJsonArray）
 │   ├── storage/database/
 │   │   ├── supabase-client.ts             # Supabase 客户端（service_role_key）
 │   │   └── shared/
-│   │       ├── schema.ts                  # Drizzle schema（7张表）
-│   │       └── relations.ts              # players ↔ player_progress/visit_journals/player_destinations 关系
-│   └── server.ts                          # 自定义服务端入口（含数据库表自动创建）
+│   │       ├── schema.ts                  # Drizzle schema（8张表）
+│   │       └── relations.ts              # players ↔ player_progress/trips/visit_journals/player_destinations 关系
+│   └── server.ts                          # 自定义服务端入口（含数据库表自动创建+字段迁移）
 ├── globals.css                            # 全局样式（字体/Leaflet/动画）
 ├── next.config.ts
 ├── package.json
@@ -91,13 +92,34 @@
 
 ## 数据库表结构
 
-- `players(id, username, password, game_day, game_time_slot, money, mood, created_at)` — username UNIQUE
-- `player_progress(id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state)` — UNIQUE(player_id, destination_slug)
-- `visit_journals(id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, completed_at, created_at)` — 每次游览完成写入一条，同一地点可有多条
-- `cache_info(destination_slug PK, destination_name, info JSONB, created_at)`
-- `cache_attractions(destination_slug PK, attractions JSONB, created_at)`
-- `cache_checkins(destination_slug PK, checkins JSONB, created_at)`
-- `player_destinations(id, player_id, destination_slug, destination_name, lat, lng, created_at)` — 玩家目的地列表，UNIQUE(player_id, destination_slug)
+### players
+`id, username, password, game_day, game_time_slot, money, mood, home_lat, home_lng, home_name, status, current_trip_id, created_at`
+- username UNIQUE
+- money INT default 500, mood INT default 10 (0-10)
+- status TEXT default 'idle'（idle/traveling_out/touring/traveling_home）
+- current_trip_id INTEGER NULL（当前活跃旅行）
+- home_lat/home_lng DOUBLE PRECISION, home_name TEXT（玩家驻地）
+
+### player_progress
+`id, player_id, destination_slug, visited_place_ids, total_places, updated_at, touring_state`
+- UNIQUE(player_id, destination_slug)
+
+### trips（新增）
+`id, player_id, destination_slug, destination_name, dest_lat, dest_lng, transport_mode, trip_days, trip_start_day, travel_cost, travel_time_slots, status, created_at`
+- status: outbound/touring/returning/completed
+- FK: player_id → players(id) ON DELETE CASCADE
+
+### visit_journals
+`id, player_id, destination_slug, place_id, place_name, events JSONB, has_image, trip_id, completed_at, created_at`
+- 每次游览完成写入一条，同一地点可有多条
+- trip_id INTEGER NULL FK → trips(id) ON DELETE SET NULL
+
+### cache_info / cache_attractions / cache_checkins
+- destination_slug PK + JSONB 数据 + created_at
+
+### player_destinations
+`id, player_id, destination_slug, destination_name, lat, lng, created_at`
+- UNIQUE(player_id, destination_slug)
 
 ## 缓存机制
 
@@ -110,19 +132,17 @@
 - `POST /api/auth`：同一接口处理注册/登录（username 查找 → 有则验证密码，无则注册）
 - 密码 SHA-256 哈希 + 盐值（`elsewhere-salt:`）
 - Token: base64(`${playerId}:${timestamp}:${signature}`)，30天有效期
-- 前端 `lib/auth.ts` 管理 localStorage 中的 token
+- 前端 `lib/auth.ts` 管理 localStorage 中的 token + 玩家状态缓存
 
 ## 时间系统
 
 - 9 个时段：dawn(拂晓)、morning1(清晨)、morning2(早上)、morning3(上午)、noon(中午)、afternoon(下午)、evening(傍晚)、night(晚上)、latenight(深夜)
 - 7 个常规时段组成一个日循环：清晨→晚上，之后跨天回到清晨
-- dawn 和 latenight 为预留时段，正常推进时跳过，仅通过 `triggerSpecialTime()` 激活（道具/特殊事件）
+- dawn 和 latenight 为预留时段，正常推进时跳过，仅通过 `triggerSpecialTime()` 激活
 - 玩家游戏时间存储在 `players` 表的 `game_day`(INT) 和 `game_time_slot`(INT) 列
 - 新玩家默认：第 1 天 · 清晨
 - 游览时每个随机事件推进一个时段
-- 景点不跨天（最多 3 个事件，7 时段足够）
 - 时间影响 AI 事件生成（prompt 注入时段描述）和页面色调
-- `TimeTimeline` 组件在地图页/确认页/游览页顶部常显（9 节点 + 当前时段棕色光点 + 心境♥左侧 + 金钱◆右侧）
 
 ## 资源系统
 
@@ -132,6 +152,14 @@
 - `/api/auth` 返回 money + mood，`/api/progress` GET 返回 + PATCH 支持更新
 - `lib/auth.ts` 缓存：`getCachedResources()` / `cacheResources()` / `cachePlayerState()` 统一缓存时间+资源
 - `TimeTimeline` 接收 `money` 和 `mood` props，在时间线左右两侧常显
+
+## 旅行计算逻辑（lib/travel.ts）
+
+- `haversineDistance(lat1, lng1, lat2, lng2)` — Haversine 球面距离（km）
+- `travelTimeSlots(distanceKm, mode)` — 距离→游戏时段数（四档：≤1h→1, ≤2h→2, ≤4h→3, >4h→4）
+- `travelCost(distanceKm, mode)` — 距离→路费（高铁 0.5元/km）
+- `roundTripCost` / `roundTripTimeSlots` — 往返辅助
+- `TransportMode` 类型 + `TRANSPORT_CONFIG` 配置表（目前仅高铁，预留飞机/自驾）
 
 ## 地图标记状态
 
@@ -181,6 +209,7 @@
 2. 禁止使用 head 标签，优先 metadata
 3. 三方 CSS/字体通过 globals.css @import 或 next/font
 4. **localStorage 缓存值初始化**：gameDay/gameTimeSlot/money/mood 等 localStorage 缓存值，useState 用默认值初始化（SSR 安全），在 useEffect 中从缓存更新（避免 hydration mismatch）
+5. **TimeTimeline 渲染时机**：使用 `timeLoaded` 标志，等 useEffect 从 localStorage 读取后再渲染，避免页面切换时闪烁回默认值
 
 ### Leaflet 注意事项
 
@@ -189,6 +218,7 @@
 - 默认图标路径需手动修复：`delete (L.Icon.Default.prototype as any)._getIconUrl`
 - 地图初始化后必须调用 `map.invalidateSize()`
 - 标记动态管理：通过 useEffect 对比 destinations 数组增删 marker
+- flyTo 偏移：使用 CRS 投影坐标偏移避免光点被底部面板遮挡（`crs.latLngToPoint` → Y偏移 `containerH/2-120` → `crs.pointToLatLng`）
 
 ### PlaceItem ID 规范
 
