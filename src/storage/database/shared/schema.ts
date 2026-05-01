@@ -16,6 +16,11 @@ export const players = pgTable("players", {
 	gameTimeSlot: integer("game_time_slot").default(1),
 	money: integer().default(500),
 	mood: integer().default(10),
+	homeLat: doublePrecision("home_lat"),
+	homeLng: doublePrecision("home_lng"),
+	homeName: text("home_name"),
+	status: text().default("idle"),
+	currentTripId: integer("current_trip_id"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
 	unique("players_username_key").on(table.username),
@@ -81,6 +86,34 @@ export const cacheInfo = pgTable("cache_info", {
 	pgPolicy("cache_info_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
+export const trips = pgTable("trips", {
+	id: serial().primaryKey().notNull(),
+	playerId: integer("player_id").notNull(),
+	destinationSlug: text("destination_slug").notNull(),
+	destinationName: text("destination_name").notNull(),
+	destLat: doublePrecision("dest_lat").notNull(),
+	destLng: doublePrecision("dest_lng").notNull(),
+	transportMode: text("transport_mode").default("train"),
+	tripDays: integer("trip_days").notNull(),
+	tripStartDay: integer("trip_start_day").notNull(),
+	travelCost: integer("travel_cost"),
+	travelTimeSlots: integer("travel_time_slots"),
+	status: text().default("outbound"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+	completedAt: timestamp("completed_at", { withTimezone: true, mode: 'string' }),
+}, (table) => [
+	index("trips_player_id_idx").using("btree", table.playerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.playerId],
+			foreignColumns: [players.id],
+			name: "trips_player_id_players_id_fk"
+		}).onDelete("cascade"),
+	pgPolicy("trips_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
+	pgPolicy("trips_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
+	pgPolicy("trips_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
+	pgPolicy("trips_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);
+
 export const visitJournals = pgTable("visit_journals", {
 	id: serial().primaryKey().notNull(),
 	playerId: integer("player_id").notNull(),
@@ -89,17 +122,24 @@ export const visitJournals = pgTable("visit_journals", {
 	placeName: text("place_name").default(""),
 	events: jsonb().notNull(),
 	hasImage: boolean("has_image").default(false),
+	tripId: integer("trip_id"),
 	completedAt: timestamp("completed_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
 	index("visit_journals_player_id_idx").using("btree", table.playerId.asc().nullsLast().op("int4_ops")),
 	index("visit_journals_destination_slug_idx").using("btree", table.destinationSlug.asc().nullsLast().op("text_ops")),
 	index("visit_journals_place_id_idx").using("btree", table.placeId.asc().nullsLast().op("text_ops")),
+	index("visit_journals_trip_id_idx").using("btree", table.tripId.asc().nullsLast().op("int4_ops")),
 	foreignKey({
 			columns: [table.playerId],
 			foreignColumns: [players.id],
 			name: "visit_journals_player_id_players_id_fk"
 		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.tripId],
+			foreignColumns: [trips.id],
+			name: "visit_journals_trip_id_trips_id_fk"
+		}).onDelete("set null"),
 	pgPolicy("visit_journals_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true`  }),
 	pgPolicy("visit_journals_允许公开删除", { as: "permissive", for: "delete", to: ["public"] }),
 	pgPolicy("visit_journals_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),

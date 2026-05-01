@@ -88,6 +88,51 @@ async function verifyDatabase() {
     await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS game_time_slot INTEGER DEFAULT 1`);
     await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS money INTEGER DEFAULT 500`);
     await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS mood INTEGER DEFAULT 10`);
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS home_lat DOUBLE PRECISION`);
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS home_lng DOUBLE PRECISION`);
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS home_name TEXT`);
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'idle'`);
+    await client.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS current_trip_id INTEGER`);
+
+    // 创建 trips 表（如不存在）
+    await client.query(`CREATE TABLE IF NOT EXISTS trips (
+      id SERIAL PRIMARY KEY,
+      player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      destination_slug TEXT NOT NULL,
+      destination_name TEXT NOT NULL,
+      dest_lat DOUBLE PRECISION NOT NULL,
+      dest_lng DOUBLE PRECISION NOT NULL,
+      transport_mode TEXT NOT NULL DEFAULT 'train',
+      trip_days INTEGER NOT NULL,
+      trip_start_day INTEGER NOT NULL,
+      travel_cost INTEGER,
+      travel_time_slots INTEGER,
+      status TEXT NOT NULL DEFAULT 'outbound',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    )`);
+    // 创建索引
+    await client.query(`CREATE INDEX IF NOT EXISTS trips_player_id_idx ON trips(player_id)`);
+    // 启用 RLS 并添加策略
+    await client.query(`ALTER TABLE trips ENABLE ROW LEVEL SECURITY`);
+    await client.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'trips_允许公开写入') THEN
+        CREATE POLICY "trips_允许公开写入" ON trips FOR INSERT TO public WITH CHECK (true);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'trips_允许公开读取') THEN
+        CREATE POLICY "trips_允许公开读取" ON trips FOR SELECT TO public;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'trips_允许公开删除') THEN
+        CREATE POLICY "trips_允许公开删除" ON trips FOR DELETE TO public;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'trips_允许公开更新') THEN
+        CREATE POLICY "trips_允许公开更新" ON trips FOR UPDATE TO public;
+      END IF;
+    END $$`);
+
+    // visit_journals 新增 trip_id 列
+    await client.query(`ALTER TABLE visit_journals ADD COLUMN IF NOT EXISTS trip_id INTEGER REFERENCES trips(id) ON DELETE SET NULL`);
+    await client.query(`CREATE INDEX IF NOT EXISTS visit_journals_trip_id_idx ON visit_journals(trip_id)`);
 
     await client.end();
     console.log('[verifyDatabase] 数据库验证完成');
